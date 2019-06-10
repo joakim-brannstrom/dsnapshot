@@ -1,0 +1,9 @@
+name "dsnapshot"
+description "A application usign rsync for rolling backups"
+authors "Joakim Brännström"
+copyright "Copyright © 2019, Joakim Brännström"
+license "BSL-1.0"
+
+dependency "colorlog" version="~>0.0.2"
+
+targetPath "build"
