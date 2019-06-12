@@ -17,10 +17,16 @@ import dsnapshot.backup;
 import dsnapshot.config;
 
 int main(string[] args) {
-
     confLogger(VerboseMode.info);
 
     auto conf = parseUserArgs(args);
+
+    confLogger(conf.verbosity);
+
+    static foreach (T; Config.Type.AllowedTypes) {
+        if (auto a = conf.data.peek!T)
+            logger.tracef("%s", *a);
+    }
 
     if (conf.help) {
         return cmdHelp(conf);
@@ -46,6 +52,7 @@ int cmdHelp(Config conf) {
 Config parseUserArgs(string[] args) {
     import std.format : format;
     import std.string : toLower;
+    import std.traits : EnumMembers;
     static import std.getopt;
 
     Config conf;
@@ -67,6 +74,7 @@ Config parseUserArgs(string[] args) {
             // dfmt off
             string confFile;
             conf.helpInfo = std.getopt.getopt(args,
+                "v|verbose", format("Set the verbosity (%-(%s, %))", [EnumMembers!(VerboseMode)]), &conf.verbosity,
                 "c|config", "Config file to read", &confFile,
                 );
             // dfmt on
@@ -97,4 +105,23 @@ Config parseUserArgs(string[] args) {
     }
 
     return conf;
+}
+
+void loadConfig(ref Config conf) @trusted {
+    import std.algorithm : filter, map;
+    import std.array : array;
+    import std.conv : to;
+    import std.file : exists, readText;
+    import std.path : dirName, buildPath;
+    import toml;
+
+    if (conf.data.hasValue && conf.data.convertsTo!(Config.Backup))
+        return;
+
+    const confFile = conf.data.get!(Config.Backup).confFile;
+
+    if (!exists(confFile)) {
+        logger.errorf("Configuration %s do not exist", confFile);
+        return;
+    }
 }

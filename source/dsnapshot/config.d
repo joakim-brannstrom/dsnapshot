@@ -5,7 +5,11 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 */
 module dsnapshot.config;
 
+import logger = std.experimental.logger;
 import std.stdio : writeln;
+
+import colorlog;
+
 public import dsnapshot.types;
 
 struct Config {
@@ -24,6 +28,9 @@ struct Config {
     bool help;
     string progName;
     std.getopt.GetoptResult helpInfo;
+
+    VerboseMode verbosity;
+
     Type data;
 
     void printHelp() {
