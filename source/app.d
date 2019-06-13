@@ -21,14 +21,14 @@ int main(string[] args) {
 
     auto conf = parseUserArgs(args);
 
-    confLogger(conf.verbosity);
+    confLogger(conf.global.verbosity);
 
     static foreach (T; Config.Type.AllowedTypes) {
         if (auto a = conf.data.peek!T)
             logger.tracef("%s", *a);
     }
 
-    if (conf.help) {
+    if (conf.global.help) {
         return cmdHelp(conf);
     }
 
@@ -42,14 +42,15 @@ int main(string[] args) {
     // dfmt on
 }
 
+@safe:
 private:
 
-int cmdHelp(Config conf) {
+int cmdHelp(Config conf) @trusted {
     conf.printHelp;
     return 0;
 }
 
-Config parseUserArgs(string[] args) {
+Config parseUserArgs(string[] args) @trusted {
     import std.format : format;
     import std.string : toLower;
     import std.traits : EnumMembers;
@@ -57,7 +58,7 @@ Config parseUserArgs(string[] args) {
 
     Config conf;
     conf.data = Config.Help.init;
-    conf.progName = args[0].baseName;
+    conf.global.progName = args[0].baseName;
 
     string group;
     if (args.length > 1) {
@@ -73,12 +74,12 @@ Config parseUserArgs(string[] args) {
 
             // dfmt off
             string confFile;
-            conf.helpInfo = std.getopt.getopt(args,
-                "v|verbose", format("Set the verbosity (%-(%s, %))", [EnumMembers!(VerboseMode)]), &conf.verbosity,
+            conf.global.helpInfo = std.getopt.getopt(args,
+                "v|verbose", format("Set the verbosity (%-(%s, %))", [EnumMembers!(VerboseMode)]), &conf.global.verbosity,
                 "c|config", "Config file to read", &confFile,
                 );
             // dfmt on
-            data.confFile = confFile.Path;
+            conf.global.confFile = confFile.Path;
         }
 
         alias ParseFn = void delegate();
@@ -91,16 +92,16 @@ Config parseUserArgs(string[] args) {
 
         if (auto p = group in parsers) {
             (*p)();
-            conf.help = conf.helpInfo.helpWanted;
+            conf.global.help = conf.global.helpInfo.helpWanted;
         } else {
-            conf.help = true;
+            conf.global.help = true;
         }
     } catch (std.getopt.GetOptException e) {
         // unknown option
-        conf.help = true;
+        conf.global.help = true;
         logger.error(e.msg);
     } catch (Exception e) {
-        conf.help = true;
+        conf.global.help = true;
         logger.error(e.msg);
     }
 
@@ -115,13 +116,11 @@ void loadConfig(ref Config conf) @trusted {
     import std.path : dirName, buildPath;
     import toml;
 
-    if (conf.data.hasValue && conf.data.convertsTo!(Config.Backup))
+    if (conf.global.confFile.length == 0)
         return;
 
-    const confFile = conf.data.get!(Config.Backup).confFile;
-
-    if (!exists(confFile)) {
-        logger.errorf("Configuration %s do not exist", confFile);
+    if (!exists(conf.global.confFile)) {
+        logger.errorf("Configuration %s do not exist", conf.global.confFile);
         return;
     }
 }

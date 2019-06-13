@@ -19,19 +19,21 @@ struct Config {
     struct Help {
     }
 
-    struct Backup {
+    struct Global {
         Path confFile;
+        VerboseMode verbosity;
+        bool help;
+        std.getopt.GetoptResult helpInfo;
+        string progName;
+    }
+
+    struct Backup {
     }
 
     alias Type = Algebraic!(Help, Backup);
-
-    bool help;
-    string progName;
-    std.getopt.GetoptResult helpInfo;
-
-    VerboseMode verbosity;
-
     Type data;
+
+    Global global;
 
     void printHelp() {
         import std.format : format;
@@ -39,7 +41,8 @@ struct Config {
         import std.path : baseName;
         import std.string : toLower;
 
-        defaultGetoptPrinter(format("usage: %s <command>\n", progName), helpInfo.options);
+        defaultGetoptPrinter(format("usage: %s <command>\n", global.progName),
+                global.helpInfo.options);
         writeln("Command groups:");
         static foreach (T; Type.AllowedTypes) {
             writeln("  ", T.stringof.toLower);
