@@ -7,6 +7,7 @@ module app;
 
 import logger = std.experimental.logger;
 import std.algorithm : remove;
+import std.exception : collectException;
 import std.path;
 import std.stdio : writeln;
 import std.string;
@@ -23,6 +24,7 @@ int main(string[] args) {
 
     confLogger(conf.global.verbosity);
 
+    logger.trace(conf.global);
     static foreach (T; Config.Type.AllowedTypes) {
         if (auto a = conf.data.peek!T)
             logger.tracef("%s", *a);
@@ -33,6 +35,9 @@ int main(string[] args) {
     }
 
     import std.variant : visit;
+
+    loadConfig(conf);
+    logger.trace(conf);
 
     // dfmt off
     return conf.data.visit!(
@@ -59,6 +64,7 @@ Config parseUserArgs(string[] args) @trusted {
     Config conf;
     conf.data = Config.Help.init;
     conf.global.progName = args[0].baseName;
+    conf.global.confFile = ".dsnapshot.toml";
 
     string group;
     if (args.length > 1) {
@@ -67,23 +73,26 @@ Config parseUserArgs(string[] args) @trusted {
     }
 
     try {
+        string confFile;
+
         void backupParse() {
             Config.Backup data;
             scope (success)
                 conf.data = data;
 
             // dfmt off
-            string confFile;
             conf.global.helpInfo = std.getopt.getopt(args,
                 "v|verbose", format("Set the verbosity (%-(%s, %))", [EnumMembers!(VerboseMode)]), &conf.global.verbosity,
                 "c|config", "Config file to read", &confFile,
                 );
             // dfmt on
-            conf.global.confFile = confFile.Path;
         }
 
         alias ParseFn = void delegate();
         ParseFn[string] parsers;
+
+        if (confFile.length != 0)
+            conf.global.confFile = confFile.Path;
 
         static foreach (T; Config.Type.AllowedTypes) {
             static if (!is(T == Config.Help))
@@ -120,7 +129,90 @@ void loadConfig(ref Config conf) @trusted {
         return;
 
     if (!exists(conf.global.confFile)) {
-        logger.errorf("Configuration %s do not exist", conf.global.confFile);
+        logger.errorf("Configuration %s do not exist", conf.global.confFile.value);
         return;
+    }
+
+    static auto tryLoading(string configFile) {
+        auto txt = readText(configFile);
+        auto doc = parseTOML(txt);
+        return doc;
+    }
+
+    TOMLDocument doc;
+    try {
+        doc = tryLoading(conf.global.confFile);
+    } catch (Exception e) {
+        logger.warning("Unable to read the configuration from ", conf.global.confFile);
+        logger.warning(e.msg);
+        return;
+    }
+
+    alias Fn = void delegate(ref Config c, ref TOMLValue v);
+    Fn[string] tables;
+
+    tables["snapshot"] = (ref Config c, ref TOMLValue snapshots) {
+        foreach (name, data; snapshots) {
+            Snapshot s;
+            s.name = name;
+            foreach (k, v; data) {
+                try {
+                    switch (k) {
+                    case "src":
+                        s.src = v.str;
+                        break;
+                    case "dst":
+                        s.dst = v.str;
+                        break;
+                    case "use_fakeroot":
+                        s.useFakeRoot = v == true;
+                        break;
+                    case "use_rsync":
+                        s.useRsync = v == true;
+                        break;
+                    case "pre_exec":
+                        s.preExec = v.array.map!(a => a.str).array;
+                        break;
+                    case "post_exec":
+                        s.preExec = v.array.map!(a => a.str).array;
+                        break;
+                    default:
+                        logger.infof("Unknown option '%s' in section 'snapshot.%s' in configuration",
+                                k, name);
+                    }
+                } catch (Exception e) {
+                    logger.error(e.msg).collectException;
+                }
+            }
+            c.snapshots ~= s;
+        }
+    };
+
+    tables["main"] = (ref Config c, ref TOMLValue table) {
+        foreach (k, v; table) {
+            try {
+                switch (k) {
+                case "threads":
+                    c.global.threads = v.integer;
+                    break;
+                default:
+                    logger.infof("Unknown option '%s' in section 'main' in configuration", k);
+                }
+            } catch (Exception e) {
+                logger.error(e.msg).collectException;
+            }
+        }
+    };
+
+    foreach (curr; doc.byKeyValue.filter!(a => a.value.type == TOML_TYPE.TABLE)) {
+        try {
+            if (auto t = curr.key in tables) {
+                (*t)(conf, curr.value);
+            } else {
+                logger.infof("Unknown section '%s' in configuration", curr.key);
+            }
+        } catch (Exception e) {
+            logger.error(e.msg).collectException;
+        }
     }
 }

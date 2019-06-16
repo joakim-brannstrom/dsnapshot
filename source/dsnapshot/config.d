@@ -19,21 +19,30 @@ struct Config {
     struct Help {
     }
 
-    struct Global {
-        Path confFile;
-        VerboseMode verbosity;
-        bool help;
-        std.getopt.GetoptResult helpInfo;
-        string progName;
+    struct Backup {
     }
 
-    struct Backup {
+    struct Global {
+        /// Configuration file to read
+        Path confFile;
+
+        VerboseMode verbosity;
+
+        bool help;
+
+        std.getopt.GetoptResult helpInfo;
+
+        string progName;
+
+        /// Max number of threads to use in parallel for e.g. snapshotting
+        long threads;
     }
 
     alias Type = Algebraic!(Help, Backup);
     Type data;
 
     Global global;
+    Snapshot[] snapshots;
 
     void printHelp() {
         import std.format : format;

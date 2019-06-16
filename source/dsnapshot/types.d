@@ -32,3 +32,20 @@ struct Path {
         value_ = rhs.value_;
     }
 }
+
+struct Snapshot {
+    /// Name of this snapshot
+    string name;
+
+    string src;
+    string dst;
+
+    /// If rsync should be used for this snapshot
+    bool useRsync = true;
+
+    /// If fakeroot should be used for this snapshot
+    bool useFakeRoot = true;
+
+    string[] preExec;
+    string[] postExec;
+}
