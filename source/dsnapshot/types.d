@@ -46,6 +46,23 @@ struct Snapshot {
     /// If fakeroot should be used for this snapshot
     bool useFakeRoot = true;
 
+    /// Number of snapshots to keep
+    long maxNumber;
+
     string[] preExec;
     string[] postExec;
+
+    string[] rsyncArgs = ["-rlptgoDPh", "--delay-updates"];
 }
+
+// -r recursive
+// -l copy symlinks as symlinks
+// -p preserve permissions
+// -t preserve modification times
+// -g preserve groups permissions
+// -o preserve owner permission
+// -D preserve devices
+// --delay-updates save files in a destination directory and then do a atomic update
+// --delete delete files from dest if they are removed in src
+// --chmod change permission on transfered files
+//

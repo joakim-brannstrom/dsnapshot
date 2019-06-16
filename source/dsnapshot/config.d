@@ -33,9 +33,6 @@ struct Config {
         std.getopt.GetoptResult helpInfo;
 
         string progName;
-
-        /// Max number of threads to use in parallel for e.g. snapshotting
-        long threads;
     }
 
     alias Type = Algebraic!(Help, Backup);

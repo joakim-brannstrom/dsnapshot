@@ -42,7 +42,7 @@ int main(string[] args) {
     // dfmt off
     return conf.data.visit!(
           (Config.Help a) => cmdHelp(conf),
-          (Config.Backup a) => cmdBackup(a),
+          (Config.Backup a) => cmdBackup(conf.global, a, conf.snapshots),
     );
     // dfmt on
 }
@@ -176,6 +176,12 @@ void loadConfig(ref Config conf) @trusted {
                     case "post_exec":
                         s.preExec = v.array.map!(a => a.str).array;
                         break;
+                    case "rsync_args":
+                        s.rsyncArgs = v.array.map!(a => a.str).array;
+                        break;
+                    case "nr":
+                        s.maxNumber = v.integer;
+                        break;
                     default:
                         logger.infof("Unknown option '%s' in section 'snapshot.%s' in configuration",
                                 k, name);
@@ -192,9 +198,6 @@ void loadConfig(ref Config conf) @trusted {
         foreach (k, v; table) {
             try {
                 switch (k) {
-                case "threads":
-                    c.global.threads = v.integer;
-                    break;
                 default:
                     logger.infof("Unknown option '%s' in section 'main' in configuration", k);
                 }
