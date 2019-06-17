@@ -10,3 +10,15 @@ dependency "sumtype" version="~>0.8.6"
 dependency "toml" version="~>1.0.0-rc.3"
 
 targetPath "build"
+
+configuration "application" {
+    targetType "executable"
+}
+
+configuration "unittest" {
+    dependency "unit-threaded" version="~>0.9.4"
+    targetType "executable"
+    mainSourceFile "build/ut.d"
+    preBuildCommands "dub run unit-threaded -c gen_ut_main -- -f build/ut.d"
+    excludedSourceFiles "source/app.d"
+}
