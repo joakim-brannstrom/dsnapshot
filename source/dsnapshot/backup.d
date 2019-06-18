@@ -127,6 +127,7 @@ void sync(const Snapshot snapshot, const Path[] snapDirs) {
 
     if (snapshot.lowPrio) {
         try {
+            logger.info("Changing IO and CPU priority to low");
             execute(["ionice", "-c", "3", "-p", syncPid.processID.to!string]);
             execute(["renice", "+12", "-p", syncPid.processID.to!string]);
         } catch (Exception e) {
