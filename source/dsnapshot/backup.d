@@ -133,20 +133,25 @@ void sync(const Snapshot snapshot, const Path[] snapDirs) {
         opts ~= ["--exclude", a];
 
     const workDir = buildPath(snapshot.dst, snapshotWork);
+    const logFname = workDir.setExtension(snapshotLog);
 
     opts ~= [src, workDir];
+
     logger.trace(opts);
     logger.infof("Synchronizing '%s' to '%s'", src, snapshot.dst);
 
-    const logFname = workDir.setExtension(snapshotLog);
+    string[string] hookEnv = ["DSNAPSHOT_WORK" : workDir];
 
     // execute hook
     auto log = File(logFname, "w");
     foreach (s; snapshot.preExec) {
         logger.trace("pre_exec: ", s);
-        if (spawnShell(s, stdin, log, log).wait != 0)
+        if (spawnShell(s, stdin, log, log, hookEnv).wait != 0)
             throw new SnapshotException(SnapshotStatus.preExecFailed);
     }
+
+    log = File(logFname, "a");
+    log.writefln("%-(%s %)", opts);
 
     log = File(logFname, "a");
     auto syncPid = spawnProcess(opts, stdin, log, log);
@@ -168,7 +173,7 @@ void sync(const Snapshot snapshot, const Path[] snapDirs) {
     log = File(logFname, "a");
     foreach (s; snapshot.postExec) {
         logger.trace("post_exec: ", s);
-        if (spawnShell(s, stdin, log, log).wait != 0)
+        if (spawnShell(s, stdin, log, log, hookEnv).wait != 0)
             throw new SnapshotException(SnapshotStatus.postExecFailed);
     }
 }
