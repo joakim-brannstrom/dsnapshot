@@ -189,7 +189,7 @@ void loadConfig(ref Config conf) @trusted {
                         s.preExec = v.array.map!(a => a.str).array;
                         break;
                     case "post_exec":
-                        s.preExec = v.array.map!(a => a.str).array;
+                        s.postExec = v.array.map!(a => a.str).array;
                         break;
                     case "rsync_args":
                         s.rsyncArgs = v.array.map!(a => a.str).array;

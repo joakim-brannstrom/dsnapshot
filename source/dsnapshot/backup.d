@@ -35,6 +35,12 @@ int cmdBackup(Config.Global global, Config.Backup backup, Snapshot[] snapshots) 
             case syncFailed:
                 logger.errorf("Failed to sync from '%s' to '%s'", s.src, s.dst);
                 break;
+            case preExecFailed:
+                logger.error("One or more of the `pre_exec` hooks failed");
+                break;
+            case postExecFailed:
+                logger.error("One or more of the `post_exec` hooks failed");
+                break;
             }
             logger.error("Failed");
         } catch (Exception e) {
@@ -62,6 +68,8 @@ enum SnapshotStatus {
     dstIsNotADir,
     unableToAcquireWorkLock,
     syncFailed,
+    preExecFailed,
+    postExecFailed,
 }
 
 private:
@@ -101,8 +109,9 @@ SnapshotStatus snapshot(const Snapshot snapshot) {
 
 void sync(const Snapshot snapshot, const Path[] snapDirs) {
     import std.conv : to;
+    import std.file : remove;
     import std.path : buildPath, setExtension;
-    import std.process : spawnProcess, wait, execute;
+    import std.process : spawnProcess, wait, execute, spawnShell, executeShell;
     import std.stdio : stdin, File;
 
     immutable src = () {
@@ -129,7 +138,16 @@ void sync(const Snapshot snapshot, const Path[] snapDirs) {
     logger.trace(opts);
     logger.infof("Synchronizing '%s' to '%s'", src, snapshot.dst);
 
-    auto log = File(workDir.setExtension(snapshotLog), "w");
+    const logFname = workDir.setExtension(snapshotLog);
+
+    // execute hook
+    auto log = File(logFname, "w");
+    foreach (s; snapshot.preExec) {
+        if (spawnShell(s, stdin, log, log).wait != 0)
+            throw new SnapshotException(SnapshotStatus.preExecFailed);
+    }
+
+    log = File(logFname, "a");
     auto syncPid = spawnProcess(opts, stdin, log, log);
 
     if (snapshot.lowPrio) {
@@ -144,6 +162,13 @@ void sync(const Snapshot snapshot, const Path[] snapDirs) {
 
     if (syncPid.wait != 0)
         throw new SnapshotException(SnapshotStatus.syncFailed);
+
+    // execute hook
+    log = File(logFname, "a");
+    foreach (s; snapshot.postExec) {
+        if (spawnShell(s, stdin, log, log).wait != 0)
+            throw new SnapshotException(SnapshotStatus.postExecFailed);
+    }
 }
 
 Path[] removeOldSnapshots(Path[] snapDirs, const long maxNumber) {
