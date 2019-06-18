@@ -170,6 +170,9 @@ void loadConfig(ref Config conf) @trusted {
                     case "use_rsync":
                         s.useRsync = v == true;
                         break;
+                    case "low_prio":
+                        s.lowPrio = v == true;
+                        break;
                     case "pre_exec":
                         s.preExec = v.array.map!(a => a.str).array;
                         break;

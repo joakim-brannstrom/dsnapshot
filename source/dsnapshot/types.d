@@ -46,6 +46,9 @@ struct Snapshot {
     /// If fakeroot should be used for this snapshot
     bool useFakeRoot = true;
 
+    /// Low process and io priority
+    bool lowPrio = true;
+
     /// Number of snapshots to keep
     long maxNumber;
 
@@ -62,5 +65,8 @@ struct Snapshot {
     // --delay-updates save files in a destination directory and then do a atomic update
     // --delete delete files from dest if they are removed in src
     // --chmod change permission on transfered files
-    string[] rsyncArgs = ["-rlptgoDPh", "--delay-updates", "--delete"];
+    // --partial keep partially transferred files
+    string[] rsyncArgs = [
+        "-rlptgoDhv", "--partial", "--delay-updates", "--delete"
+    ];
 }

@@ -70,10 +70,12 @@ private:
 immutable snapshotWork = "work";
 /// If the file exists then it means that work is locked.
 immutable snapshotWorkLock = "work.lock";
+/// Extension used for rsync logs
+immutable snapshotLog = ".log";
 
 SnapshotStatus snapshot(const Snapshot snapshot) {
     import std.file : exists, mkdirRecurse, rename;
-    import std.path : buildPath;
+    import std.path : buildPath, setExtension;
 
     Path[] snapDirs = scanForSnapshots(snapshot.dst);
 
@@ -91,13 +93,17 @@ SnapshotStatus snapshot(const Snapshot snapshot) {
     incrSnapshotDirs(snapDirs);
 
     rename(workDir, buildPath(snapshot.dst, "0"));
+    rename(workDir.setExtension(snapshotLog), buildPath(snapshot.dst, "0")
+            .setExtension(snapshotLog));
 
     return SnapshotStatus.ok;
 }
 
 void sync(const Snapshot snapshot, const Path[] snapDirs) {
-    import std.path : buildPath;
-    import std.process : spawnProcess, wait;
+    import std.conv : to;
+    import std.path : buildPath, setExtension;
+    import std.process : spawnProcess, wait, execute;
+    import std.stdio : stdin, File;
 
     immutable src = () {
         if (snapshot.src[$ - 1] == '/')
@@ -110,19 +116,37 @@ void sync(const Snapshot snapshot, const Path[] snapDirs) {
     if (snapDirs.length != 0)
         opts ~= ["--link-dest", snapDirs[0]];
 
-    opts ~= [src, buildPath(snapshot.dst, snapshotWork)];
+    const workDir = buildPath(snapshot.dst, snapshotWork);
+
+    opts ~= [src, workDir];
     logger.trace(opts);
     logger.infof("Synchronizing '%s' to '%s'", src, snapshot.dst);
-    if (spawnProcess(opts).wait != 0)
+
+    auto log = File(workDir.setExtension(snapshotLog), "w");
+    auto syncPid = spawnProcess(opts, stdin, log, log);
+
+    if (snapshot.lowPrio) {
+        try {
+            execute(["ionice", "-c", "3", "-p", syncPid.processID.to!string]);
+            execute(["renice", "+12", "-p", syncPid.processID.to!string]);
+        } catch (Exception e) {
+            logger.info(e.msg);
+        }
+    }
+
+    if (syncPid.wait != 0)
         throw new SnapshotException(SnapshotStatus.syncFailed);
 }
 
 Path[] removeOldSnapshots(Path[] snapDirs, const long maxNumber) {
-    import std.file : rmdirRecurse;
+    import std.file : rmdirRecurse, remove;
+    import std.path : setExtension;
 
     while (snapDirs.length > maxNumber) {
-        logger.info("Removing old snapshot ", snapDirs[$ - 1].value);
-        rmdirRecurse(snapDirs[$ - 1]);
+        const old = snapDirs[$ - 1];
+        logger.info("Removing old snapshot ", old.value);
+        rmdirRecurse(old);
+        remove(old.setExtension(snapshotLog)).collectException;
         snapDirs = snapDirs[0 .. $ - 1];
     }
 
@@ -144,6 +168,7 @@ Path[] scanForSnapshots(string dst) {
         throw new SnapshotException(SnapshotStatus.dstIsNotADir);
 
     return dirEntries(dst, SpanMode.shallow).map!(a => a.name)
+        .filter!(a => a.isDir)
         .filter!(a => a.baseName.to!long.ifThrown(-1) >= 0)
         .array
         .sort!((a, b) => a.baseName.to!long < b.baseName.to!long)
@@ -211,7 +236,7 @@ struct FileLockGuard {
 void incrSnapshotDirs(Path[] snaps) {
     import std.conv : to;
     import std.file : rename;
-    import std.path : baseName, dirName, buildPath;
+    import std.path : baseName, dirName, buildPath, setExtension;
     import std.range : retro;
 
     if (snaps.length == 0)
@@ -223,5 +248,6 @@ void incrSnapshotDirs(Path[] snaps) {
         const oldIdx = a.baseName.to!long;
         const new_ = buildPath(dir, (oldIdx + 1).to!string);
         rename(a, new_);
+        rename(a.setExtension(snapshotLog), new_.setExtension(snapshotLog)).collectException;
     }
 }
