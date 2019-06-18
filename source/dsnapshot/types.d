@@ -40,6 +40,14 @@ struct Snapshot {
     string src;
     string dst;
 
+    string cmdRsync = "/usr/bin/rsync";
+
+    /// If --link-dest should be used with rsync
+    bool useLinkDest = true;
+
+    /// One filesystem, don't cross partitions within a backup point.
+    bool oneFs = true;
+
     /// If rsync should be used for this snapshot
     bool useRsync = true;
 
@@ -55,6 +63,9 @@ struct Snapshot {
     string[] preExec;
     string[] postExec;
 
+    string[] exclude;
+
+    // -a archive mode; equals -rlptgoD (no -H,-A,-X)
     // -r recursive
     // -l copy symlinks as symlinks
     // -p preserve permissions
@@ -66,7 +77,11 @@ struct Snapshot {
     // --delete delete files from dest if they are removed in src
     // --chmod change permission on transfered files
     // --partial keep partially transferred files
+    // --numeric-ids don't map uid/gid values by user/group name
+    // --relative use relative path names
+    // --delete-excluded also delete excluded files from dest dirs
     string[] rsyncArgs = [
-        "-rlptgoDhv", "--partial", "--delay-updates", "--delete"
+        "-ahv", "--partial", "--delay-updates", "--delete", "--numeric-ids",
+        "--relative", "--delete-excluded",
     ];
 }

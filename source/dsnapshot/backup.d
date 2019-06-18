@@ -111,10 +111,17 @@ void sync(const Snapshot snapshot, const Path[] snapDirs) {
         return snapshot.src ~ "/";
     }();
 
-    string[] opts = ["rsync"];
+    string[] opts = [snapshot.cmdRsync];
     opts ~= snapshot.rsyncArgs.dup;
-    if (snapDirs.length != 0)
+
+    if (snapshot.oneFs)
+        opts ~= ["-x"];
+
+    if (snapshot.useLinkDest && snapDirs.length != 0)
         opts ~= ["--link-dest", snapDirs[0]];
+
+    foreach (a; snapshot.exclude)
+        opts ~= ["--exclude", a];
 
     const workDir = buildPath(snapshot.dst, snapshotWork);
 

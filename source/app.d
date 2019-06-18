@@ -164,14 +164,26 @@ void loadConfig(ref Config conf) @trusted {
                     case "dst":
                         s.dst = v.str;
                         break;
+                    case "cmd_rsync":
+                        s.cmdRsync = v.str;
+                        break;
+                    case "one_fs":
+                        s.oneFs = v == true;
+                        break;
                     case "use_fakeroot":
                         s.useFakeRoot = v == true;
+                        break;
+                    case "use_link_dest":
+                        s.useLinkDest = v == true;
                         break;
                     case "use_rsync":
                         s.useRsync = v == true;
                         break;
                     case "low_prio":
                         s.lowPrio = v == true;
+                        break;
+                    case "exclude":
+                        s.exclude = v.array.map!(a => a.str).array;
                         break;
                     case "pre_exec":
                         s.preExec = v.array.map!(a => a.str).array;
