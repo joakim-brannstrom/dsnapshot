@@ -143,6 +143,7 @@ void sync(const Snapshot snapshot, const Path[] snapDirs) {
     // execute hook
     auto log = File(logFname, "w");
     foreach (s; snapshot.preExec) {
+        logger.trace("pre_exec: ", s);
         if (spawnShell(s, stdin, log, log).wait != 0)
             throw new SnapshotException(SnapshotStatus.preExecFailed);
     }
@@ -166,6 +167,7 @@ void sync(const Snapshot snapshot, const Path[] snapDirs) {
     // execute hook
     log = File(logFname, "a");
     foreach (s; snapshot.postExec) {
+        logger.trace("post_exec: ", s);
         if (spawnShell(s, stdin, log, log).wait != 0)
             throw new SnapshotException(SnapshotStatus.postExecFailed);
     }
