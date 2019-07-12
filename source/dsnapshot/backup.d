@@ -127,7 +127,7 @@ void sync(const Snapshot snapshot, const Path[] snapDirs) {
         opts ~= ["-x"];
 
     if (snapshot.useLinkDest && snapDirs.length != 0)
-        opts ~= ["--link-dest", snapDirs[0]];
+        opts ~= ["--link-dest", snapDirs[0].toString];
 
     foreach (a; snapshot.exclude)
         opts ~= ["--exclude", a];
@@ -184,9 +184,9 @@ Path[] removeOldSnapshots(Path[] snapDirs, const long maxNumber) {
 
     while (snapDirs.length > maxNumber) {
         const old = snapDirs[$ - 1];
-        logger.info("Removing old snapshot ", old.value);
-        rmdirRecurse(old);
-        remove(old.setExtension(snapshotLog)).collectException;
+        logger.info("Removing old snapshot ", old);
+        rmdirRecurse(old.toString);
+        remove(old.toString.setExtension(snapshotLog)).collectException;
         snapDirs = snapDirs[0 .. $ - 1];
     }
 
@@ -244,7 +244,7 @@ FileLockGuard acquireLock(Path lock) {
     import std.stdio : File;
     import core.thread : getpid;
 
-    auto lockf = File(lock, "w");
+    auto lockf = File(lock.toString, "w");
     if (!lockf.tryLock)
         throw new SnapshotException(SnapshotStatus.unableToAcquireWorkLock);
 
@@ -269,7 +269,7 @@ struct FileLockGuard {
         import std.file : remove;
 
         lock.close;
-        remove(fname);
+        remove(fname.toString);
     }
 }
 
@@ -286,8 +286,9 @@ void incrSnapshotDirs(Path[] snaps) {
 
     foreach (const a; snaps.retro) {
         const oldIdx = a.baseName.to!long;
-        const new_ = buildPath(dir, (oldIdx + 1).to!string);
-        rename(a, new_);
-        rename(a.setExtension(snapshotLog), new_.setExtension(snapshotLog)).collectException;
+        const new_ = buildPath(dir.toString, (oldIdx + 1).to!string);
+        rename(a.toString, new_);
+        rename(a.toString.setExtension(snapshotLog), new_.setExtension(snapshotLog))
+            .collectException;
     }
 }

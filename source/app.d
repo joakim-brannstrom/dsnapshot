@@ -121,15 +121,12 @@ void loadConfig(ref Config conf) @trusted {
     import std.algorithm : filter, map;
     import std.array : array;
     import std.conv : to;
-    import std.file : exists, readText;
+    import std.file : exists, readText, isFile;
     import std.path : dirName, buildPath;
     import toml;
 
-    if (conf.global.confFile.length == 0)
-        return;
-
-    if (!exists(conf.global.confFile)) {
-        logger.errorf("Configuration %s do not exist", conf.global.confFile.value);
+    if (!exists(conf.global.confFile.toString) || !conf.global.confFile.toString.isFile) {
+        logger.errorf("Configuration %s do not exist", conf.global.confFile);
         return;
     }
 
@@ -141,7 +138,7 @@ void loadConfig(ref Config conf) @trusted {
 
     TOMLDocument doc;
     try {
-        doc = tryLoading(conf.global.confFile);
+        doc = tryLoading(conf.global.confFile.toString);
     } catch (Exception e) {
         logger.warning("Unable to read the configuration from ", conf.global.confFile);
         logger.warning(e.msg);
