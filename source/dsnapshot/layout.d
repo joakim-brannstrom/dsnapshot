@@ -37,11 +37,16 @@ version (unittest) {
     import unit_threaded.assertions;
 }
 
+/// Name of an existing snapshot.
+struct Name {
+    string value;
+}
+
 struct Snapshot {
     /// The time the snapshot was taken.
     SysTime time;
     /// Name of the snapshot. This is used to locate it.
-    string name;
+    Name name;
 }
 
 /// Represent an empty position in the snapshot layout.
@@ -57,7 +62,7 @@ struct Bucket {
 /// It is always positive. The closer to zero the better fit.
 Duration fitness(const SysTime a, const SysTime b) {
     auto diff = b - a;
-    if (diff < Duration.zero)
+    if (diff.isNegative)
         return diff * -1;
     return diff;
 }
@@ -111,7 +116,7 @@ struct Layout {
 
         SysTime curr = start;
         foreach (a; conf.spans.map!(a => repeat(a.space, a.nr)).joiner) {
-            curr += a;
+            curr -= a;
             app.put(curr);
         }
         time = app.data;
@@ -168,20 +173,20 @@ unittest {
 
     // completely fill up the layout
     foreach (a; iota(0, addSnapshotsNr)) {
-        layout.put(Snapshot(base + a.dur!"hours", a.to!string));
+        layout.put(Snapshot(base - a.dur!"hours", a.to!string.Name));
     }
 
-    logger.info(base);
-    logger.infof("%(%s\n%)", layout.time.enumerate);
-    logger.infof("%(%s\n%)", layout.buckets.enumerate);
+    //logger.info(base);
+    //logger.infof("%(%s\n%)", layout.time.enumerate);
+    //logger.infof("%(%s\n%)", layout.buckets.enumerate);
 
     layout.buckets.length.should == 15;
     layout.discarded.length.shouldEqual(addSnapshotsNr - 15);
 
-    (layout.time[0] - base).total!"hours".shouldEqual(4);
-    (layout.time[4] - base).total!"hours".shouldEqual(4 * 5);
-    (layout.time[5] - base).total!"hours".shouldEqual(4 * 5 + 24);
-    (layout.time[9] - base).total!"hours".shouldEqual(4 * 5 + 24 * 5);
-    (layout.time[10] - base).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7);
-    (layout.time[14] - base).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7 * 5);
+    (base - layout.time[0]).total!"hours".shouldEqual(4);
+    (base - layout.time[4]).total!"hours".shouldEqual(4 * 5);
+    (base - layout.time[5]).total!"hours".shouldEqual(4 * 5 + 24);
+    (base - layout.time[9]).total!"hours".shouldEqual(4 * 5 + 24 * 5);
+    (base - layout.time[10]).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7);
+    (base - layout.time[14]).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7 * 5);
 }

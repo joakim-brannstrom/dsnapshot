@@ -5,6 +5,8 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 */
 module dsnapshot.types;
 
+public import sumtype;
+
 /// Tag a string as a path and make it absolute+normalized.
 struct Path {
     import std.path : absolutePath, buildNormalizedPath, buildPath;
@@ -70,14 +72,56 @@ struct Path {
     }
 }
 
+//TODO: rename to SnapshotConfig
 struct Snapshot {
+    import dsnapshot.layout : Layout;
+
     /// Name of this snapshot
     string name;
 
-    string src;
-    string dst;
+    SumType!(None, RsyncConfig) syncCmd;
 
-    string cmdRsync = "/usr/bin/rsync";
+    /// The snapshot layout to use.
+    Layout layout;
+
+    string[] preExec;
+    string[] postExec;
+}
+
+struct None {
+}
+
+struct LocalAddr {
+    string value;
+}
+
+struct RsyncAddr {
+    string value;
+
+    this(string a) {
+        if (a.length != 0 && a[$ - 1] != '/')
+            value = a ~ "/";
+        else
+            value = a;
+    }
+}
+
+/// Local flow of data.
+struct FlowLocal {
+    LocalAddr src;
+    LocalAddr dst;
+}
+
+/// Flow of data using a remote rsync address to a local destination.
+struct FlowRsyncToLocal {
+    RsyncAddr src;
+    LocalAddr dst;
+}
+
+alias Flow = SumType!(None, FlowLocal, FlowRsyncToLocal);
+
+struct RsyncConfig {
+    Flow flow;
 
     /// If --link-dest should be used with rsync
     bool useLinkDest = true;
@@ -85,22 +129,17 @@ struct Snapshot {
     /// One filesystem, don't cross partitions within a backup point.
     bool oneFs = true;
 
-    /// If rsync should be used for this snapshot
-    bool useRsync = true;
-
     /// If fakeroot should be used for this snapshot
     bool useFakeRoot = true;
 
     /// Low process and io priority
     bool lowPrio = true;
 
-    /// Number of snapshots to keep
-    long maxNumber;
-
-    string[] preExec;
-    string[] postExec;
-
+    /// Patterns to exclude from rsync.
     string[] exclude;
+
+    /// Rsync command to use
+    string cmdRsync;
 
     // -a archive mode; equals -rlptgoD (no -H,-A,-X)
     // -r recursive
@@ -117,7 +156,7 @@ struct Snapshot {
     // --numeric-ids don't map uid/gid values by user/group name
     // --relative use relative path names
     // --delete-excluded also delete excluded files from dest dirs
-    string[] rsyncArgs = [
+    string[] args = [
         "-ahv", "--partial", "--delay-updates", "--delete", "--numeric-ids",
         "--relative", "--delete-excluded",
     ];

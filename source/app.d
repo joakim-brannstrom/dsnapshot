@@ -149,38 +149,17 @@ void loadConfig(ref Config conf) @trusted {
     Fn[string] tables;
 
     tables["snapshot"] = (ref Config c, ref TOMLValue snapshots) {
+        logger.info(snapshots);
         foreach (name, data; snapshots) {
             Snapshot s;
             s.name = name;
             foreach (k, v; data) {
                 try {
                     switch (k) {
-                    case "src":
-                        s.src = v.str;
-                        break;
-                    case "dst":
-                        s.dst = v.str;
-                        break;
-                    case "cmd_rsync":
-                        s.cmdRsync = v.str;
-                        break;
-                    case "one_fs":
-                        s.oneFs = v == true;
-                        break;
-                    case "use_fakeroot":
-                        s.useFakeRoot = v == true;
-                        break;
-                    case "use_link_dest":
-                        s.useLinkDest = v == true;
-                        break;
-                    case "use_rsync":
-                        s.useRsync = v == true;
-                        break;
-                    case "low_prio":
-                        s.lowPrio = v == true;
-                        break;
-                    case "exclude":
-                        s.exclude = v.array.map!(a => a.str).array;
+                    case "rsync":
+                        auto rsync = parseRsync(v, name);
+                        logger.trace(rsync);
+                        s.syncCmd = rsync;
                         break;
                     case "pre_exec":
                         s.preExec = v.array.map!(a => a.str).array;
@@ -188,11 +167,10 @@ void loadConfig(ref Config conf) @trusted {
                     case "post_exec":
                         s.postExec = v.array.map!(a => a.str).array;
                         break;
-                    case "rsync_args":
-                        s.rsyncArgs = v.array.map!(a => a.str).array;
-                        break;
-                    case "nr":
-                        s.maxNumber = v.integer;
+                    case "span":
+                        auto layout = parseLayout(v);
+                        logger.trace(layout);
+                        s.layout = layout;
                         break;
                     default:
                         logger.infof("Unknown option '%s' in section 'snapshot.%s' in configuration",
@@ -230,4 +208,135 @@ void loadConfig(ref Config conf) @trusted {
             logger.error(e.msg).collectException;
         }
     }
+}
+
+import toml : TOMLValue;
+
+auto parseLayout(ref TOMLValue tv) @trusted {
+    import std.algorithm : sort, map;
+    import std.array : array;
+    import std.conv : to;
+    import std.datetime : Duration, dur, Clock;
+    import std.range : chunks;
+    import std.string : split;
+    import std.typecons : Nullable;
+    import dsnapshot.layout : Span, LayoutConfig, Layout;
+
+    Span[long] spans;
+
+    static Nullable!Span parseASpan(ref TOMLValue data) {
+        typeof(return) rval;
+
+        immutable spaceKey = "space";
+        immutable nrKey = "nr";
+        if (spaceKey !in data || nrKey !in data) {
+            logger.warning("Missing either 'nr' or 'space' key");
+            return rval;
+        }
+
+        const parts = data[spaceKey].str.split;
+        if (parts.length % 2 != 0) {
+            logger.warning(
+                    "Invalid space specification because either the number or unit is missing");
+            return rval;
+        }
+
+        Duration d;
+        foreach (const p; parts.chunks(2)) {
+            const nr = p[0].to!long;
+            switch (p[1]) {
+            case "minutes":
+                d += nr.dur!"minutes";
+                break;
+            case "hours":
+                d += nr.dur!"hours";
+                break;
+            case "days":
+                d += nr.dur!"days";
+                break;
+            default:
+                logger.warningf("Invalid unit '%s'. Valid are minutes, hours and days.", p[1]);
+                return rval;
+            }
+        }
+
+        const nr = data[nrKey].integer;
+        if (nr <= 0) {
+            logger.warning("nr must be positive");
+            return rval;
+        }
+
+        rval = Span(cast(uint) nr, d);
+
+        return rval;
+    }
+
+    foreach (key, data; tv) {
+        logger.tracef("%s %s", key, data);
+        try {
+            const idx = key.to!long;
+            auto span = parseASpan(data);
+            if (span.isNull) {
+                logger.warning(tv);
+            } else {
+                spans[idx] = span.get;
+            }
+        } catch (Exception e) {
+            logger.warning(e.msg);
+            logger.warning(tv);
+        }
+    }
+
+    return Layout(Clock.currTime, LayoutConfig(spans.byKeyValue
+            .array
+            .sort!((a, b) => a.key < b.key)
+            .map!(a => a.value)
+            .array));
+}
+
+auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
+    import std.algorithm : map;
+    import std.array : array;
+    import dsnapshot.types;
+
+    RsyncConfig rval;
+    string src;
+    string dst;
+    foreach (key, data; tv) {
+        switch (key) {
+        case "src":
+            src = data.str;
+            break;
+        case "dst":
+            dst = data.str;
+            break;
+        case "cmd_rsync":
+            rval.cmdRsync = data.str;
+            break;
+        case "one_fs":
+            rval.oneFs = data == true;
+            break;
+        case "use_fakeroot":
+            rval.useFakeRoot = data == true;
+            break;
+        case "use_link_dest":
+            rval.useLinkDest = data == true;
+            break;
+        case "low_prio":
+            rval.lowPrio = data == true;
+            break;
+        case "exclude":
+            rval.exclude = data.array.map!(a => a.str).array;
+            break;
+        case "rsync_args":
+            rval.args = data.array.map!(a => a.str).array;
+            break;
+        default:
+            logger.infof("Unknown option '%s' in section 'snapshot.%s.rsync' in configuration",
+                    key, parent);
+        }
+    }
+
+    rval.flow = FlowRsyncToLocal(RsyncAddr(src), LocalAddr(dst));
+    return rval;
 }
