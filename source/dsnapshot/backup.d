@@ -113,7 +113,7 @@ void snapshot(Snapshot snapshot) {
     flow.match!((None a) {}, (FlowLocal a) {
         removeLocalSnapshots(a.dst, layout);
     }, (FlowRsyncToLocal a) { removeLocalSnapshots(a.dst, layout); }, (FlowLocalToRsync a) {
-        removeRemoteSnapshots(flow, layout, snapshot.remoteCmd);
+        removeRemoteSnapshots(a.dst, layout, snapshot.remoteCmd);
     });
 }
 
@@ -261,7 +261,24 @@ void removeLocalSnapshots(const LocalAddr local, const Layout layout) {
     }
 }
 
-void removeRemoteSnapshots(const Flow flow, const Layout layout_, const RemoteCmd cmd) {
+void removeRemoteSnapshots(const RsyncAddr addr, const Layout layout, const RemoteCmd cmd_) {
+    import std.algorithm : map;
+    import std.path : buildPath;
+    import std.process : spawnProcess, wait;
+
+    foreach (const name; layout.discarded.map!(a => a.name)) {
+        auto cmd = cmd_.match!((None a) => null, (const SshRemoteCmd a) {
+            return a.toCmd(RemoteSubCmd.rmdirRecurse, addr.addr, buildPath(addr.path, name.value));
+        });
+
+        logger.info("Removing old snapshot ", name.value);
+        try {
+            logger.infof("%-(%s %)", cmd);
+            spawnProcess(cmd).wait;
+        } catch (Exception e) {
+            logger.warning(e.msg);
+        }
+    }
 }
 
 import dsnapshot.layout : Name, Layout;
@@ -321,18 +338,16 @@ Name[] snapshotNamesFromDir(Path dir) {
 Name[] snapshotNamesFromSsh(const RemoteCmd cmd_, string addr, string path) {
     import std.algorithm : map, copy;
     import std.array : appender;
-    import std.string : splitLines;
     import std.process : execute;
+    import std.string : splitLines;
 
-    auto cmd = appender!(string[])();
-
-    cmd_.match!((None a) {}, (const SshRemoteCmd a) {
-        cmd.put(a.toCmd(RemoteSubCmd.lsDirs, addr, path));
+    auto cmd = cmd_.match!((None a) => null, (const SshRemoteCmd a) {
+        return a.toCmd(RemoteSubCmd.lsDirs, addr, path);
     });
-    if (cmd.data.empty)
+    if (cmd.empty)
         return null;
 
-    auto res = execute(cmd.data);
+    auto res = execute(cmd);
     if (res.status != 0) {
         logger.warning(res.output);
         return null;
