@@ -8,6 +8,7 @@ module dsnapshot.remotecmd;
 import logger = std.experimental.logger;
 
 import dsnapshot.config;
+import dsnapshot.types;
 
 int cmdRemote(const Config.Remotecmd conf) nothrow {
     import std.algorithm : map, filter;
@@ -16,10 +17,10 @@ int cmdRemote(const Config.Remotecmd conf) nothrow {
     import std.path : baseName;
     import std.stdio : writeln;
 
-    final switch (conf.cmd) with (Config.Remotecmd) {
-    case Command.none:
+    final switch (conf.cmd) {
+    case RemoteSubCmd.none:
         break;
-    case Command.lsDirs:
+    case RemoteSubCmd.lsDirs:
         try {
             foreach (p; dirEntries(conf.path, SpanMode.shallow).filter!(a => a.isDir)
                     .map!(a => a.name.baseName)) {
@@ -28,7 +29,7 @@ int cmdRemote(const Config.Remotecmd conf) nothrow {
         } catch (Exception e) {
         }
         break;
-    case Command.mkdirRecurse:
+    case RemoteSubCmd.mkdirRecurse:
         try {
             if (!exists(conf.path))
                 mkdirRecurse(conf.path);
@@ -36,7 +37,7 @@ int cmdRemote(const Config.Remotecmd conf) nothrow {
             logger.warning(e.msg).collectException;
         }
         break;
-    case Command.rmdirRecurse:
+    case RemoteSubCmd.rmdirRecurse:
         try {
             if (exists(conf.path))
                 rmdirRecurse(conf.path);

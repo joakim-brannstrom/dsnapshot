@@ -97,17 +97,29 @@ struct Hooks {
 
 alias RemoteCmd = SumType!(None, SshRemoteCmd);
 
+enum RemoteSubCmd {
+    none,
+    lsDirs,
+    mkdirRecurse,
+    rmdirRecurse,
+}
+
 /// Info of how to execute dsnapshot on the remote host.
 struct SshRemoteCmd {
     /// Path/lookup to use to find dsnapshot on the remote host.
-    string path = "dsnapshot";
+    string dsnapshot = "dsnapshot";
 
     /// dsnapshot is executed via ssh or equivalent command.
-    string[] cmd = ["ssh"];
+    string[] rsh = ["ssh"];
 
     /// Returns: a cmd to execute with `std.process`.
-    string[] toCmd(string[] args) @safe pure nothrow const {
-        return cmd ~ [path] ~ args;
+    string[] toCmd(RemoteSubCmd subCmd, string addr, string path) @safe pure const {
+        import std.conv : to;
+
+        return rsh ~ [
+            addr, dsnapshot, "remotecmd", "--cmd", subCmd.to!string, "--path",
+            path
+        ];
     }
 }
 
@@ -118,6 +130,12 @@ struct None {
 
 struct LocalAddr {
     string value;
+
+    this(string v) {
+        import std.path : expandTilde;
+
+        value = v.expandTilde;
+    }
 }
 
 struct RsyncAddr {
@@ -160,7 +178,7 @@ struct RsyncConfig {
     bool oneFs = true;
 
     /// If fakeroot should be used for this snapshot
-    bool useFakeRoot = true;
+    bool useFakeRoot = false;
 
     /// Low process and io priority
     bool lowPrio = true;
@@ -188,6 +206,6 @@ struct RsyncConfig {
     // --delete-excluded also delete excluded files from dest dirs
     string[] args = [
         "-ahv", "--partial", "--delay-updates", "--delete", "--numeric-ids",
-        "--relative", "--delete-excluded",
+        "--delete-excluded",
     ];
 }

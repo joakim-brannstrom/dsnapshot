@@ -226,6 +226,8 @@ struct Layout {
         import std.format : formattedWrite;
         import std.range : enumerate, put;
 
+        put(w, "Layout(");
+
         put(w, "Bucket nr: Best Fit Time - Content\n");
         foreach (a; buckets.enumerate)
             formattedWrite(w, "%s: %s - %s\n", a.index, time[a.index], a.value);
@@ -239,6 +241,8 @@ struct Layout {
             put(w, "Discarded\n");
         foreach (a; discarded.enumerate)
             formattedWrite(w, "%s: %s\n", a.index, a.value);
+
+        put(w, ")");
     }
 }
 

@@ -37,13 +37,14 @@ int main(string[] args) {
 
     import std.variant : visit;
 
-    loadConfig(conf);
-    logger.trace(conf);
-
     // dfmt off
     return conf.data.visit!(
           (Config.Help a) => cmdHelp(conf),
-          (Config.Backup a) => cmdBackup(conf.global, a, conf.snapshots),
+          (Config.Backup a) {
+          loadConfig(conf);
+          logger.trace(conf);
+          return cmdBackup(conf.global, a, conf.snapshots);
+          },
           (Config.Remotecmd a) => cmdRemote(a),
     );
     // dfmt on
@@ -100,7 +101,7 @@ Config parseUserArgs(string[] args) @trusted {
 
             // dfmt off
             data.helpInfo = std.getopt.getopt(args,
-                "cmd", format("Command to execute (%-(%s, %))", [EnumMembers!(Config.Remotecmd.Command)]), &data.cmd,
+                "cmd", format("Command to execute (%-(%s, %))", [EnumMembers!(RemoteSubCmd)]), &data.cmd,
                 "path", "Path argument for the command", &data.path,
                 );
             // dfmt on
@@ -119,11 +120,10 @@ Config parseUserArgs(string[] args) @trusted {
                 mixin(format(`parsers["%1$s"] = &%1$sParse;`, T.stringof.toLower));
         }
 
+        conf.global.help = true;
         if (auto p = group in parsers) {
             (*p)();
             conf.global.help = conf.global.helpInfo.helpWanted;
-        } else {
-            conf.global.help = true;
         }
     } catch (std.getopt.GetOptException e) {
         // unknown option
@@ -177,7 +177,6 @@ void loadConfig(ref Config conf) @trusted {
                     switch (k) {
                     case "rsync":
                         auto rsync = parseRsync(v, name);
-                        logger.trace(rsync);
                         s.syncCmd = rsync;
                         break;
                     case "pre_exec":
@@ -188,8 +187,11 @@ void loadConfig(ref Config conf) @trusted {
                         break;
                     case "span":
                         auto layout = parseLayout(v);
-                        logger.trace(layout);
                         s.layout = layout;
+                        break;
+                    case "dsnapshot":
+                        auto binary = v.str;
+                        s.remoteCmd = SshRemoteCmd(binary).RemoteCmd;
                         break;
                     default:
                         logger.infof("Unknown option '%s' in section 'snapshot.%s' in configuration",
@@ -291,7 +293,6 @@ auto parseLayout(ref TOMLValue tv) @trusted {
     }
 
     foreach (key, data; tv) {
-        logger.tracef("%s %s", key, data);
         try {
             const idx = key.to!long;
             auto span = parseASpan(data);
@@ -363,7 +364,7 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
     }
 
     if (srcAddr.empty && dstAddr.empty) {
-        rval.flow = FlowLocal(LocalAddr(src), LocalAddr(dst));
+        rval.flow = FlowLocal(LocalAddr(src.expandTilde), LocalAddr(dst));
     } else if (!srcAddr.empty && dstAddr.empty) {
         rval.flow = FlowRsyncToLocal(RsyncAddr(srcAddr, src), LocalAddr(dst));
     } else if (srcAddr.empty && !dstAddr.empty) {

@@ -23,15 +23,8 @@ struct Config {
     }
 
     struct Remotecmd {
-        enum Command {
-            none,
-            lsDirs,
-            mkdirRecurse,
-            rmdirRecurse,
-        }
-
         string path;
-        Command cmd;
+        RemoteSubCmd cmd;
         std.getopt.GetoptResult helpInfo;
     }
 
@@ -40,11 +33,8 @@ struct Config {
         Path confFile;
 
         VerboseMode verbosity;
-
         bool help;
-
         std.getopt.GetoptResult helpInfo;
-
         string progName;
     }
 

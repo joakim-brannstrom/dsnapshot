@@ -100,7 +100,7 @@ void snapshot(Snapshot snapshot) {
 
     // Extract an updated layout of the snapshots at the destination.
     auto layout = snapshot.syncCmd.match!((None a) => snapshot.layout,
-            (RsyncConfig a) => fillLayout(snapshot.layout, a.flow, snapshot.syncCmd));
+            (RsyncConfig a) => fillLayout(snapshot.layout, a.flow, snapshot.remoteCmd));
 
     auto flow = snapshot.syncCmd.match!((None a) => None.init.Flow, (RsyncConfig a) => a.flow);
 
@@ -123,8 +123,7 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
     import std.conv : to;
     import std.file : remove, exists, mkdirRecurse;
     import std.path : buildPath, setExtension;
-    import std.process : spawnProcess, wait, execute, spawnShell,
-        executeShell, escapeShellFileName;
+    import std.process : spawnProcess, wait, execute, spawnShell, executeShell;
     import std.stdio : stdin, File;
 
     static void setupLocalDest(const Path p) {
@@ -132,14 +131,16 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
             mkdirRecurse(p.toString);
     }
 
-    static void setupRemoteDest(const RemoteCmd remoteCmd, const RsyncAddr a,
+    static void setupRemoteDest(const RemoteCmd remoteCmd, const RsyncAddr addr,
             const string newSnapshot) {
-        //string[] args = ssh.dup;
-        //args ~= sshMkdir;
-        //args ~= a.addr;
-        //args ~= buildPath(a.path, newSnapshot).escapeShellFileName;
-        //logger.info("%-(%s %)", args);
-        //spawnProcess(args).wait;
+        string[] cmd = remoteCmd.match!((None a) => null, (const SshRemoteCmd a) {
+            return a.toCmd(RemoteSubCmd.mkdirRecurse, addr.addr,
+                buildPath(addr.path, newSnapshot));
+        });
+        if (!cmd.empty) {
+            logger.infof("%-(%s %)", cmd);
+            spawnProcess(cmd).wait;
+        }
     }
 
     static string fixRsyncAddr(const string a) {
@@ -178,10 +179,9 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
                     "--link-dest", (a.dst.value.Path ~ latest.get.name.value).toString
                 ];
             }, (FlowLocalToRsync a) {
-                opts ~= [
-                    "--link-dest",
-                    makeRsyncAddr(a.dst.addr, buildPath(a.dst.path, latest.get.name.value))
-                ];
+                // from the rsync documentation:
+                // If DIR is a relative path, it is relative to the destination directory.
+                opts ~= ["--link-dest", buildPath("..", latest.get.name.value)];
             });
         }
 
@@ -198,7 +198,7 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
             opts ~= [src, dst];
         }, (FlowLocalToRsync a) {
             src = fixRsyncAddr(a.src.value);
-            dst = makeRsyncAddr(a.dst.addr, a.dst.path);
+            dst = makeRsyncAddr(a.dst.addr, buildPath(a.dst.path, newSnapshot));
             opts ~= [src, dst];
         });
         return opts;
@@ -206,7 +206,6 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
 
     auto opts = buildOpts();
 
-    // TODO: add handling of remote destinations.
     // Configure local destination
     flow.match!((None a) {}, (FlowLocal a) => setupLocalDest(a.dst.value.Path ~ newSnapshot),
             (FlowRsyncToLocal a) => setupLocalDest(a.dst.value.Path ~ newSnapshot),
@@ -217,7 +216,6 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
         return;
     }
 
-    logger.trace(opts);
     logger.infof("Synchronizing '%s' to '%s'", src, dst);
 
     string[string] hookEnv = ["DSNAPSHOT_WORK" : dst];
@@ -268,7 +266,7 @@ void removeRemoteSnapshots(const Flow flow, const Layout layout_, const RemoteCm
 
 import dsnapshot.layout : Name, Layout;
 
-auto fillLayout(Layout layout_, Flow flow, const SyncCmd cmd) {
+auto fillLayout(Layout layout_, Flow flow, const RemoteCmd cmd) {
     import std.algorithm : filter, map, sort;
     import std.array : array;
     import std.conv : to;
@@ -320,7 +318,7 @@ Name[] snapshotNamesFromDir(Path dir) {
     return app.data;
 }
 
-Name[] snapshotNamesFromSsh(const SyncCmd cmd_, string addr, string path) {
+Name[] snapshotNamesFromSsh(const RemoteCmd cmd_, string addr, string path) {
     import std.algorithm : map, copy;
     import std.array : appender;
     import std.string : splitLines;
@@ -328,11 +326,8 @@ Name[] snapshotNamesFromSsh(const SyncCmd cmd_, string addr, string path) {
 
     auto cmd = appender!(string[])();
 
-    cmd_.match!((None a) {}, (const RsyncConfig a) {
-        //cmd.put(a.cmdSsh);
-        //cmd.put(addr);
-        //cmd.put(a.cmdSshLs);
-        //cmd.put(path);
+    cmd_.match!((None a) {}, (const SshRemoteCmd a) {
+        cmd.put(a.toCmd(RemoteSubCmd.lsDirs, addr, path));
     });
     if (cmd.data.empty)
         return null;
@@ -380,7 +375,7 @@ unittest {
     const base = Clock.currTime;
     auto layout = Layout(base, conf);
     layout = fillLayout(layout, FlowLocal(LocalAddr(tmpDir), LocalAddr(tmpDir))
-            .Flow, SyncCmd(None.init));
+            .Flow, RemoteCmd(None.init));
 
     layout.waiting.length.shouldEqual(0);
     layout.discarded.length.shouldEqual(20);
