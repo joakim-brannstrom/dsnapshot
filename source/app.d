@@ -227,14 +227,14 @@ auto parseLayout(ref TOMLValue tv) @trusted {
     static Nullable!Span parseASpan(ref TOMLValue data) {
         typeof(return) rval;
 
-        immutable spaceKey = "space";
+        immutable intervalKey = "interval";
         immutable nrKey = "nr";
-        if (spaceKey !in data || nrKey !in data) {
+        if (intervalKey !in data || nrKey !in data) {
             logger.warning("Missing either 'nr' or 'space' key");
             return rval;
         }
 
-        const parts = data[spaceKey].str.split;
+        const parts = data[intervalKey].str.split;
         if (parts.length % 2 != 0) {
             logger.warning(
                     "Invalid space specification because either the number or unit is missing");

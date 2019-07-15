@@ -7,19 +7,6 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 1. Construct the layout consisting of a number of consecutive slots with a
    duration between them.
 2. Fill the slots with snapshots that exists using a "best fit" algorithm.
-3. Rotate the snapshots.
-
-# Rotate algorithm
-Most of the time the rotation is automatic because the layout is moving in
-time forward and sooner or later a bucket has nothing in it.  The purpose of
-this rotation is to ensure that snapshots are kept even over longer
-distances in time such that if there is an empty space then it is used.
-This most probably happens when the differences is large between two spans
-such if a span was 1 hour followed by another that is 1 month. It could very
-well happen that multiple month buckets end up empty.
-
-1. Start from the back.
-2. If a position is empty then take its left neighboar.
 
 # Best fit
 The best fitting snapshot is the one with the lowest difference between the
@@ -286,15 +273,10 @@ unittest {
         layout.put(Snapshot(base - a.dur!"hours", a.to!string.Name));
     }
 
-    //logger.info(base);
-    //logger.info(layout);
-
     layout.buckets.length.should == 15;
     layout.waiting.length.shouldEqual(addSnapshotsNr - 15);
 
-    //logger.info(layout);
     layout.finalize;
-    //logger.info(layout);
 
     layout.waiting.length.shouldEqual(0);
     layout.discarded.length.shouldEqual(addSnapshotsNr - 15);

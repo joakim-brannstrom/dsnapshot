@@ -9,7 +9,7 @@ import logger = std.experimental.logger;
 import std.exception : collectException;
 
 import dsnapshot.config : Config;
-import dsnapshot.types : Snapshot, Path, RsyncConfig, Hooks;
+import dsnapshot.types : Snapshot, Path, RsyncConfig, Hooks, LocalAddr;
 
 import sumtype;
 
@@ -86,13 +86,6 @@ alias SnapshotError = SumType!(SnapshotException.DstIsNotADir, SnapshotException
 
 private:
 
-/// The directory where a snapshot that is being worked on is put into.
-immutable snapshotWork = "work";
-/// If the file exists then it means that work is locked.
-immutable snapshotWorkLock = "work.lock";
-/// Extension used for rsync logs
-immutable snapshotLog = ".log";
-
 void snapshot(Snapshot snapshot) {
     import std.file : exists, mkdirRecurse, rename;
     import std.path : buildPath, setExtension;
@@ -117,22 +110,9 @@ void snapshot(Snapshot snapshot) {
         logger.info("No sync done for ", snapshot.name, " (missing command configuration)");
     }, (RsyncConfig a) => sync(a, layout, flow, snapshot.hooks, newSnapshot));
 
-    //auto lock = acquireLock(buildPath(snapshot.dst, snapshotWorkLock).Path);
-    //const workDir = buildPath(snapshot.dst, snapshotWork);
-    //mkdirRecurse(workDir);
-    //
-    //auto layout = fillLayout(snapshot);
-    //logger.trace("Filled layout: ", layout);
-
-    //sync(snapshot, snapDirs);
-
-    //snapDirs = removeOldSnapshots(snapDirs, snapshot.maxNumber);
-    //
-    //incrSnapshotDirs(snapDirs);
-    //
-    //rename(workDir, buildPath(snapshot.dst, "0"));
-    //rename(workDir.setExtension(snapshotLog), buildPath(snapshot.dst, "0")
-    //        .setExtension(snapshotLog));
+    flow.match!((None a) {}, (FlowLocal a) {
+        removeLocalSnapshots(a.dst, layout);
+    }, (FlowRsyncToLocal a) { removeLocalSnapshots(a.dst, layout); });
 }
 
 void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
@@ -159,13 +139,13 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
         return 0;
     }
 
-    string src, dst, logFname;
+    string src, dst;
 
     string[] buildOpts() {
-        const latest = layout.firstFullBucket;
-
         string[] opts = [conf.cmdRsync];
         opts ~= conf.args.dup;
+
+        const latest = layout.firstFullBucket;
 
         if (conf.oneFs && !latest.isNull)
             opts ~= ["-x"];
@@ -188,12 +168,10 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
         flow.match!((None a) {}, (FlowLocal a) {
             src = a.src.value;
             dst = (a.dst.value.Path ~ newSnapshot).toString;
-            logFname = dst.setExtension(snapshotLog);
             opts ~= [src, dst];
         }, (FlowRsyncToLocal a) {
             src = a.src.value;
             dst = (a.dst.value.Path ~ newSnapshot).toString;
-            logFname = dst.setExtension(snapshotLog);
             opts ~= [src, dst];
         });
         return opts;
@@ -239,20 +217,23 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
         throw new SnapshotException(SnapshotException.PostExecFailed.init.SnapshotError);
 }
 
-//Path[] removeOldSnapshots(Path[] snapDirs, const long maxNumber) {
-//    import std.file : rmdirRecurse, remove;
-//    import std.path : setExtension;
-//
-//    while (snapDirs.length > maxNumber) {
-//        const old = snapDirs[$ - 1];
-//        logger.info("Removing old snapshot ", old);
-//        rmdirRecurse(old.toString);
-//        remove(old.toString.setExtension(snapshotLog)).collectException;
-//        snapDirs = snapDirs[0 .. $ - 1];
-//    }
-//
-//    return snapDirs;
-//}
+void removeLocalSnapshots(const LocalAddr local, const Layout layout) {
+    import std.algorithm : map;
+    import std.file : rmdirRecurse, exists, isDir;
+
+    foreach (const name; layout.discarded.map!(a => a.name)) {
+        const old = (local.value.Path ~ name.value).toString;
+        if (exists(old) && old.isDir) {
+            logger.info("Removing old snapshot ", old);
+            try {
+                rmdirRecurse(old);
+            } catch (Exception e) {
+                logger.warning(e.msg);
+            }
+        }
+
+    }
+}
 
 import dsnapshot.layout : Name, Layout;
 import dsnapshot.types : Flow;
@@ -268,6 +249,8 @@ auto fillLayout(Layout layout_, Flow flow) {
     import dsnapshot.types : FlowLocal, FlowRsyncToLocal, None;
 
     auto rval = layout_;
+    scope (exit)
+        rval.finalize;
 
     const names = flow.match!((None a) => null,
             (FlowRsyncToLocal a) => snapshotNamesFromDir(a.dst.value.Path),
@@ -284,8 +267,6 @@ auto fillLayout(Layout layout_, Flow flow) {
             rval.put(LSnapshot(SysTime.min, n));
         }
     }
-
-    rval.finalize;
 
     return rval;
 }
@@ -354,59 +335,4 @@ unittest {
     /// these buckets are filled by the second  pass
     (base - layout.snapshotTimeInBucket(8).get).total!"hours".shouldEqual(4 * 5 + 24 * 4 - 31);
     (base - layout.snapshotTimeInBucket(9).get).total!"hours".shouldEqual(4 * 5 + 24 * 5 - 60);
-}
-
-/// This is a blocking operation.
-FileLockGuard acquireLock(Path lock) {
-    import std.stdio : File;
-    import core.thread : getpid;
-
-    auto lockf = File(lock.toString, "w");
-    if (!lockf.tryLock)
-        throw new SnapshotException(
-                SnapshotError(SnapshotException.UnableToAcquireWorkLock(lock.toString)));
-
-    lockf.write(getpid);
-
-    return FileLockGuard(lockf, lock);
-}
-
-struct FileLockGuard {
-    import std.file : remove;
-    import std.stdio : File;
-
-    Path fname;
-    File lock;
-
-    this(File lock, Path fname) {
-        this.lock = lock;
-        this.fname = fname;
-    }
-
-    ~this() {
-        import std.file : remove;
-
-        lock.close;
-        remove(fname.toString);
-    }
-}
-
-void incrSnapshotDirs(Path[] snaps) {
-    import std.conv : to;
-    import std.file : rename;
-    import std.path : baseName, dirName, buildPath, setExtension;
-    import std.range : retro;
-
-    if (snaps.length == 0)
-        return;
-
-    const dir = snaps[0].dirName;
-
-    foreach (const a; snaps.retro) {
-        const oldIdx = a.baseName.to!long;
-        const new_ = buildPath(dir.toString, (oldIdx + 1).to!string);
-        rename(a.toString, new_);
-        rename(a.toString.setExtension(snapshotLog), new_.setExtension(snapshotLog))
-            .collectException;
-    }
 }
