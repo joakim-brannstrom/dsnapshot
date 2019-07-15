@@ -9,7 +9,7 @@ import logger = std.experimental.logger;
 import std.exception : collectException;
 
 import dsnapshot.config : Config;
-import dsnapshot.types : Snapshot, Path;
+import dsnapshot.types : Snapshot, Path, RsyncConfig, Hooks;
 
 import sumtype;
 
@@ -96,12 +96,27 @@ immutable snapshotLog = ".log";
 void snapshot(Snapshot snapshot) {
     import std.file : exists, mkdirRecurse, rename;
     import std.path : buildPath, setExtension;
+    import std.datetime : UTC, SysTime, Clock;
+    import dsnapshot.types;
 
-    //Path[] snapDirs = scanForSnapshots(snapshot.dst);
-    //
-    //if (!exists(snapshot.dst))
-    //    mkdirRecurse(snapshot.dst);
-    //
+    const newSnapshot = () {
+        auto c = Clock.currTime;
+        c.timezone = UTC();
+        return c.toISOExtString;
+    }();
+
+    // Extract an updated layout of the snapshots at the destination.
+    auto layout = snapshot.syncCmd.match!((None a) => snapshot.layout,
+            (RsyncConfig a) => fillLayout(snapshot.layout, a.flow));
+
+    auto flow = snapshot.syncCmd.match!((None a) => None.init.Flow, (RsyncConfig a) => a.flow);
+
+    logger.trace("Updated layout with information from destination: ", layout);
+
+    snapshot.syncCmd.match!((None a) {
+        logger.info("No sync done for ", snapshot.name, " (missing command configuration)");
+    }, (RsyncConfig a) => sync(a, layout, flow, snapshot.hooks, newSnapshot));
+
     //auto lock = acquireLock(buildPath(snapshot.dst, snapshotWorkLock).Path);
     //const workDir = buildPath(snapshot.dst, snapshotWork);
     //mkdirRecurse(workDir);
@@ -120,77 +135,110 @@ void snapshot(Snapshot snapshot) {
     //        .setExtension(snapshotLog));
 }
 
-//void sync(const Snapshot snapshot, const Path[] snapDirs) {
-//    import std.conv : to;
-//    import std.file : remove;
-//    import std.path : buildPath, setExtension;
-//    import std.process : spawnProcess, wait, execute, spawnShell, executeShell;
-//    import std.stdio : stdin, File;
-//
-//    immutable src = () {
-//        if (snapshot.src[$ - 1] == '/')
-//            return snapshot.src;
-//        return snapshot.src ~ "/";
-//    }();
-//
-//    string[] opts = [snapshot.cmdRsync];
-//    opts ~= snapshot.rsyncArgs.dup;
-//
-//    if (snapshot.oneFs)
-//        opts ~= ["-x"];
-//
-//    if (snapshot.useLinkDest && snapDirs.length != 0)
-//        opts ~= ["--link-dest", snapDirs[0].toString];
-//
-//    foreach (a; snapshot.exclude)
-//        opts ~= ["--exclude", a];
-//
-//    const workDir = buildPath(snapshot.dst, snapshotWork);
-//    const logFname = workDir.setExtension(snapshotLog);
-//
-//    opts ~= [src, workDir];
-//
-//    logger.trace(opts);
-//    logger.infof("Synchronizing '%s' to '%s'", src, snapshot.dst);
-//
-//    string[string] hookEnv = ["DSNAPSHOT_WORK" : workDir];
-//
-//    // execute hook
-//    auto log = File(logFname, "w");
-//    foreach (s; snapshot.preExec) {
-//        logger.trace("pre_exec: ", s);
-//        if (spawnShell(s, stdin, log, log, hookEnv).wait != 0)
-//            throw new SnapshotException(SnapshotStatus.preExecFailed);
-//    }
-//
-//    log = File(logFname, "a");
-//    log.writefln("%-(%s %)", opts);
-//
-//    log = File(logFname, "a");
-//    auto syncPid = spawnProcess(opts, stdin, log, log);
-//
-//    if (snapshot.lowPrio) {
-//        try {
-//            logger.info("Changing IO and CPU priority to low");
-//            execute(["ionice", "-c", "3", "-p", syncPid.processID.to!string]);
-//            execute(["renice", "+12", "-p", syncPid.processID.to!string]);
-//        } catch (Exception e) {
-//            logger.info(e.msg);
-//        }
-//    }
-//
-//    if (syncPid.wait != 0)
-//        throw new SnapshotException(SnapshotStatus.syncFailed);
-//
-//    // execute hook
-//    log = File(logFname, "a");
-//    foreach (s; snapshot.postExec) {
-//        logger.trace("post_exec: ", s);
-//        if (spawnShell(s, stdin, log, log, hookEnv).wait != 0)
-//            throw new SnapshotException(SnapshotStatus.postExecFailed);
-//    }
-//}
-//
+void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
+        const Hooks hooks, const string newSnapshot) {
+    import std.array : empty;
+    import std.conv : to;
+    import std.file : remove, exists, mkdirRecurse;
+    import std.path : buildPath, setExtension;
+    import std.process : spawnProcess, wait, execute, spawnShell, executeShell;
+    import std.stdio : stdin, File;
+    import dsnapshot.types;
+
+    static void setupLocalDest(Path p) {
+        if (!exists(p.toString))
+            mkdirRecurse(p.toString);
+    }
+
+    static int executeHooks(string msg, const string[] hooks, string[string] env) {
+        foreach (s; hooks) {
+            logger.info(msg, ": ", s);
+            if (spawnShell(s, env).wait != 0)
+                return 1;
+        }
+        return 0;
+    }
+
+    string src, dst, logFname;
+
+    string[] buildOpts() {
+        const latest = layout.firstFullBucket;
+
+        string[] opts = [conf.cmdRsync];
+        opts ~= conf.args.dup;
+
+        if (conf.oneFs && !latest.isNull)
+            opts ~= ["-x"];
+
+        if (conf.useLinkDest && !latest.isNull) {
+            flow.match!((None a) {}, (FlowLocal a) {
+                opts ~= [
+                    "--link-dest", (a.dst.value.Path ~ latest.get.name.value).toString
+                ];
+            }, (FlowRsyncToLocal a) {
+                opts ~= [
+                    "--link-dest", (a.dst.value.Path ~ latest.get.name.value).toString
+                ];
+            });
+        }
+
+        foreach (a; conf.exclude)
+            opts ~= ["--exclude", a];
+
+        flow.match!((None a) {}, (FlowLocal a) {
+            src = a.src.value;
+            dst = (a.dst.value.Path ~ newSnapshot).toString;
+            logFname = dst.setExtension(snapshotLog);
+            opts ~= [src, dst];
+        }, (FlowRsyncToLocal a) {
+            src = a.src.value;
+            dst = (a.dst.value.Path ~ newSnapshot).toString;
+            logFname = dst.setExtension(snapshotLog);
+            opts ~= [src, dst];
+        });
+        return opts;
+    }
+
+    auto opts = buildOpts();
+
+    // TODO: add handling of remote destinations.
+    // Configure local destination
+    flow.match!((None a) {}, (FlowLocal a) => setupLocalDest(a.dst.value.Path ~ newSnapshot),
+            (FlowRsyncToLocal a) => setupLocalDest(a.dst.value.Path ~ newSnapshot));
+
+    if (src.empty || dst.empty) {
+        logger.info("source or destination is empty. Nothing to do.");
+        return;
+    }
+
+    logger.trace(opts);
+    logger.infof("Synchronizing '%s' to '%s'", src, dst);
+
+    string[string] hookEnv = ["DSNAPSHOT_WORK" : dst];
+
+    if (executeHooks("pre_exec", hooks.preExec, hookEnv) != 0)
+        throw new SnapshotException(SnapshotException.PreExecFailed.init.SnapshotError);
+
+    logger.infof("%-(%s %)", opts);
+    auto syncPid = spawnProcess(opts);
+
+    if (conf.lowPrio) {
+        try {
+            logger.infof("Changing IO and CPU priority to low (pid %s)", syncPid.processID);
+            execute(["ionice", "-c", "3", "-p", syncPid.processID.to!string]);
+            execute(["renice", "+12", "-p", syncPid.processID.to!string]);
+        } catch (Exception e) {
+            logger.info(e.msg);
+        }
+    }
+
+    if (syncPid.wait != 0)
+        throw new SnapshotException(SnapshotException.SyncFailed(src, dst).SnapshotError);
+
+    if (executeHooks("post_exec", hooks.postExec, hookEnv) != 0)
+        throw new SnapshotException(SnapshotException.PostExecFailed.init.SnapshotError);
+}
+
 //Path[] removeOldSnapshots(Path[] snapDirs, const long maxNumber) {
 //    import std.file : rmdirRecurse, remove;
 //    import std.path : setExtension;
@@ -214,7 +262,6 @@ auto fillLayout(Layout layout_, Flow flow) {
     import std.array : array;
     import std.conv : to;
     import std.datetime : UTC, DateTimeException, SysTime;
-    import std.exception : ifThrown;
     import std.file : dirEntries, SpanMode, exists, isDir;
     import std.path : baseName;
     import dsnapshot.layout : LSnapshot = Snapshot;
@@ -232,11 +279,13 @@ auto fillLayout(Layout layout_, Flow flow) {
             rval.put(LSnapshot(t, n));
         } catch (DateTimeException e) {
             logger.warning("Unable to extract the time from the snapshot name");
-            logger.info("It is added as a snapshot taken at the time ", SysTime.min);
             logger.info(e.msg);
+            logger.info("It is added as a snapshot taken at the time ", SysTime.min);
             rval.put(LSnapshot(SysTime.min, n));
         }
     }
+
+    rval.finalize;
 
     return rval;
 }
@@ -267,6 +316,7 @@ unittest {
     import std.file;
     import std.path;
     import std.range : enumerate;
+    import sumtype;
     import dsnapshot.layout : Layout, LayoutConfig, Span;
     import dsnapshot.types : LocalAddr, FlowLocal, Flow;
 
@@ -275,13 +325,16 @@ unittest {
         rmdirRecurse(tmpDir);
     mkdir(tmpDir);
 
-    immutable interval = 1.dur!"hours";
     auto curr = Clock.currTime;
     curr.timezone = UTC();
 
-    foreach (const i; 0 .. 39) {
+    foreach (const i; 0 .. 15) {
         mkdir(buildPath(tmpDir, curr.toISOExtString));
-        curr -= interval;
+        curr -= 1.dur!"hours";
+    }
+    foreach (const i; 0 .. 15) {
+        curr -= 5.dur!"hours";
+        mkdir(buildPath(tmpDir, curr.toISOExtString));
     }
 
     auto conf = LayoutConfig([Span(5, 4.dur!"hours"), Span(5, 1.dur!"days")]);
@@ -289,12 +342,18 @@ unittest {
     auto layout = Layout(base, conf);
     layout = fillLayout(layout, FlowLocal(LocalAddr(tmpDir), LocalAddr(tmpDir)).Flow);
 
-    // 39 added, 6 are used
-    layout.discarded.length.shouldEqual(33);
+    layout.waiting.length.shouldEqual(0);
+    layout.discarded.length.shouldEqual(20);
 
-    (base - layout.time[0]).total!"hours".shouldEqual(4);
-    (base - layout.time[4]).total!"hours".shouldEqual(4 * 5);
-    (base - layout.time[5]).total!"hours".shouldEqual(4 * 5 + 24);
+    (base - layout.snapshotTimeInBucket(0).get).total!"hours".shouldEqual(4);
+    (base - layout.snapshotTimeInBucket(4).get).total!"hours".shouldEqual(4 * 5);
+    (base - layout.snapshotTimeInBucket(5).get).total!"hours".shouldEqual(4 * 5 + 24 + 1);
+    (base - layout.snapshotTimeInBucket(6).get).total!"hours".shouldEqual(4 * 5 + 24 * 2 + 2);
+    (base - layout.snapshotTimeInBucket(7).get).total!"hours".shouldEqual(4 * 5 + 24 * 3 - 2);
+
+    /// these buckets are filled by the second  pass
+    (base - layout.snapshotTimeInBucket(8).get).total!"hours".shouldEqual(4 * 5 + 24 * 4 - 31);
+    (base - layout.snapshotTimeInBucket(9).get).total!"hours".shouldEqual(4 * 5 + 24 * 5 - 60);
 }
 
 /// This is a blocking operation.

@@ -32,10 +32,13 @@ import std.algorithm : joiner, map;
 import std.array : appender;
 import std.datetime : SysTime, Duration, dur, Clock;
 import std.range : repeat, enumerate;
+import std.typecons : Nullable;
 
 version (unittest) {
     import unit_threaded.assertions;
 }
+
+@safe:
 
 /// Name of an existing snapshot.
 struct Name {
@@ -68,10 +71,10 @@ Duration fitness(const SysTime a, const SysTime b) {
 }
 
 /// Returns: the index of the candidate that best fit the time.
-size_t bestFit(const SysTime time, const SysTime[] candidates) {
+Nullable!size_t bestFit(const SysTime time, const SysTime[] candidates) {
     import std.typecons : tuple;
 
-    size_t rval = 0;
+    typeof(return) rval;
     auto curr = Duration.max;
     foreach (a; candidates.enumerate.map!(a => tuple(a.index, fitness(time, a.value)))) {
         if (a[1] < curr) {
@@ -91,7 +94,7 @@ unittest {
     auto candidates = iota(0, 10).map!(a => Clock.currTime + a.dur!"hours").array;
 
     const bucket = Clock.currTime + 4.dur!"hours";
-    bestFit(bucket, candidates).should == 4;
+    bestFit(bucket, candidates).get.should == 4;
 }
 
 /**
@@ -102,18 +105,33 @@ unittest {
  *
  * The only data that it relies on is the basename of the paths that are pushed
  * to it.
- */
+ *
+ * It operates on two passes.
+ * During the first pass snapshots are added to the buckets following a best
+ * fit algorithm.  Snapshots are never discarded at this stage. If a snapshot
+ * do not fit in a bucket or is replaced it is moved to a waiting list.
+ *
+ * During the second pass the waiting snapshots are mapped back to the buckets
+ * via the same best fit algorithm.  The difference here is that the buckets
+ * "time" is matched against all waiting snapshots. This is the reverse of the
+ * first pass.
+ * */
 struct Layout {
+    import sumtype;
+
     Bucket[] buckets;
     /// The time of the bucket which a snapshot should try to match.
     const(SysTime)[] time;
+
+    /// Snapshots collected for pass two.
+    Snapshot[] waiting;
 
     /// Snapshots that has been discarded because they do not have the best fit for any bucket.
     Snapshot[] discarded;
 
     this(const SysTime start, const LayoutConfig conf) {
+        // configure the buckets
         auto app = appender!(SysTime[])();
-
         SysTime curr = start;
         foreach (a; conf.spans.map!(a => repeat(a.space, a.nr)).joiner) {
             curr -= a;
@@ -123,25 +141,117 @@ struct Layout {
         buckets.length = time.length;
     }
 
-    void put(const Snapshot s) {
-        import sumtype;
+    Nullable!(Snapshot) firstFullBucket() const {
+        typeof(return) rval;
+        foreach (a; buckets) {
+            bool done;
+            a.value.match!((Empty a) {}, (Snapshot a) { done = true; rval = a; });
+            if (done)
+                break;
+        }
+        return rval;
+    }
 
+    bool empty() const {
+        return buckets.length == 0;
+    }
+
+    /// Returns: the time of the snapshot that is in the bucket
+    Nullable!SysTime snapshotTimeInBucket(size_t idx) {
+        typeof(return) rval;
+        if (idx >= buckets.length)
+            return rval;
+
+        buckets[idx].value.match!((Empty a) {}, (Snapshot a) { rval = a.time; });
+        return rval;
+    }
+
+    void put(const Snapshot s) {
         if (buckets.length == 0) {
             discarded ~= s;
             return;
         }
 
         const fitIdx = bestFit(s.time, time);
+        if (fitIdx.isNull) {
+            waiting ~= s;
+            return;
+        }
+
         const bucketTime = time[fitIdx];
         buckets[fitIdx].value = buckets[fitIdx].value.match!((Empty a) => s, (Snapshot a) {
             // Replace the snapshot in the bucket if the new one `s` is a better fit.
             if (fitness(bucketTime, s.time) < fitness(bucketTime, a.time)) {
-                discarded ~= a;
+                waiting ~= a;
                 return s;
             }
-            discarded ~= s;
+            waiting ~= s;
             return a;
         });
+    }
+
+    /// Pass two. Moving waiting to either buckets or discarded.
+    void finalize() {
+        import std.algorithm : remove;
+        import std.array : array;
+
+        if (buckets.length == 0 || waiting.length == 0) {
+            return;
+        }
+
+        scope (exit)
+            waiting = null;
+
+        auto waitingTimes = waiting.map!(a => a.time).array;
+        size_t bucketIdx;
+
+        while (bucketIdx < buckets.length) {
+            scope (exit)
+                bucketIdx++;
+
+            const fitIdx = bestFit(time[bucketIdx], waitingTimes);
+            if (fitIdx.isNull) {
+                continue;
+            }
+
+            buckets[bucketIdx].value = buckets[bucketIdx].value.match!((Empty a) {
+                auto s = waiting[fitIdx];
+                waiting = waiting.remove(fitIdx.get);
+                waitingTimes = waitingTimes.remove(fitIdx.get);
+                return s;
+            }, (Snapshot a) => a);
+        }
+
+        discarded ~= waiting;
+    }
+
+    import std.range : isOutputRange;
+
+    string toString() @safe const {
+        import std.array : appender;
+
+        auto buf = appender!string;
+        toString(buf);
+        return buf.data;
+    }
+
+    void toString(Writer)(ref Writer w) const if (isOutputRange!(Writer, char)) {
+        import std.format : formattedWrite;
+        import std.range : enumerate, put;
+
+        put(w, "Bucket nr: Best Fit Time - Content\n");
+        foreach (a; buckets.enumerate)
+            formattedWrite(w, "%s: %s - %s\n", a.index, time[a.index], a.value);
+
+        if (waiting.length != 0)
+            put(w, "waiting\n");
+        foreach (a; waiting.enumerate)
+            formattedWrite(w, "%s: %s\n", a.index, a.value);
+
+        if (discarded.length != 0)
+            put(w, "Discarded\n");
+        foreach (a; discarded.enumerate)
+            formattedWrite(w, "%s: %s\n", a.index, a.value);
     }
 }
 
@@ -177,10 +287,16 @@ unittest {
     }
 
     //logger.info(base);
-    //logger.infof("%(%s\n%)", layout.time.enumerate);
-    //logger.infof("%(%s\n%)", layout.buckets.enumerate);
+    //logger.info(layout);
 
     layout.buckets.length.should == 15;
+    layout.waiting.length.shouldEqual(addSnapshotsNr - 15);
+
+    //logger.info(layout);
+    layout.finalize;
+    //logger.info(layout);
+
+    layout.waiting.length.shouldEqual(0);
     layout.discarded.length.shouldEqual(addSnapshotsNr - 15);
 
     (base - layout.time[0]).total!"hours".shouldEqual(4);

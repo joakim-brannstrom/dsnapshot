@@ -162,10 +162,10 @@ void loadConfig(ref Config conf) @trusted {
                         s.syncCmd = rsync;
                         break;
                     case "pre_exec":
-                        s.preExec = v.array.map!(a => a.str).array;
+                        s.hooks.preExec = v.array.map!(a => a.str).array;
                         break;
                     case "post_exec":
-                        s.postExec = v.array.map!(a => a.str).array;
+                        s.hooks.postExec = v.array.map!(a => a.str).array;
                         break;
                     case "span":
                         auto layout = parseLayout(v);

@@ -84,6 +84,10 @@ struct Snapshot {
     /// The snapshot layout to use.
     Layout layout;
 
+    Hooks hooks;
+}
+
+struct Hooks {
     string[] preExec;
     string[] postExec;
 }
@@ -139,7 +143,7 @@ struct RsyncConfig {
     string[] exclude;
 
     /// Rsync command to use
-    string cmdRsync;
+    string cmdRsync = "rsync";
 
     // -a archive mode; equals -rlptgoD (no -H,-A,-X)
     // -r recursive
