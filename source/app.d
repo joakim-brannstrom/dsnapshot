@@ -16,6 +16,7 @@ import colorlog;
 
 import dsnapshot.backup;
 import dsnapshot.config;
+import dsnapshot.remotecmd;
 
 int main(string[] args) {
     confLogger(VerboseMode.info);
@@ -43,6 +44,7 @@ int main(string[] args) {
     return conf.data.visit!(
           (Config.Help a) => cmdHelp(conf),
           (Config.Backup a) => cmdBackup(conf.global, a, conf.snapshots),
+          (Config.Remotecmd a) => cmdRemote(a),
     );
     // dfmt on
 }
@@ -75,15 +77,31 @@ Config parseUserArgs(string[] args) @trusted {
     try {
         string confFile;
 
-        void backupParse() {
+        void globalParse() {
             Config.Backup data;
             scope (success)
                 conf.data = data;
 
             // dfmt off
-            conf.global.helpInfo = std.getopt.getopt(args,
+            conf.global.helpInfo = std.getopt.getopt(args, std.getopt.config.passThrough,
                 "v|verbose", format("Set the verbosity (%-(%s, %))", [EnumMembers!(VerboseMode)]), &conf.global.verbosity,
                 "c|config", "Config file to read", &confFile,
+                );
+            // dfmt on
+        }
+
+        void backupParse() {
+        }
+
+        void remotecmdParse() {
+            Config.Remotecmd data;
+            scope (success)
+                conf.data = data;
+
+            // dfmt off
+            data.helpInfo = std.getopt.getopt(args,
+                "cmd", format("Command to execute (%-(%s, %))", [EnumMembers!(Config.Remotecmd.Command)]), &data.cmd,
+                "path", "Path argument for the command", &data.path,
                 );
             // dfmt on
         }
@@ -93,6 +111,8 @@ Config parseUserArgs(string[] args) @trusted {
 
         if (confFile.length != 0)
             conf.global.confFile = confFile.Path;
+
+        globalParse;
 
         static foreach (T; Config.Type.AllowedTypes) {
             static if (!is(T == Config.Help))
@@ -149,7 +169,6 @@ void loadConfig(ref Config conf) @trusted {
     Fn[string] tables;
 
     tables["snapshot"] = (ref Config c, ref TOMLValue snapshots) {
-        logger.info(snapshots);
         foreach (name, data; snapshots) {
             Snapshot s;
             s.name = name;
@@ -296,19 +315,25 @@ auto parseLayout(ref TOMLValue tv) @trusted {
 
 auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
     import std.algorithm : map;
-    import std.array : array;
+    import std.array : array, empty;
+    import std.format : format;
     import dsnapshot.types;
 
     RsyncConfig rval;
-    string src;
-    string dst;
+    string src, srcAddr, dst, dstAddr;
     foreach (key, data; tv) {
         switch (key) {
         case "src":
             src = data.str;
             break;
+        case "src_addr":
+            srcAddr = data.str;
+            break;
         case "dst":
             dst = data.str;
+            break;
+        case "dst_addr":
+            dstAddr = data.str;
             break;
         case "cmd_rsync":
             rval.cmdRsync = data.str;
@@ -337,6 +362,15 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
         }
     }
 
-    rval.flow = FlowRsyncToLocal(RsyncAddr(src), LocalAddr(dst));
+    if (srcAddr.empty && dstAddr.empty) {
+        rval.flow = FlowLocal(LocalAddr(src), LocalAddr(dst));
+    } else if (!srcAddr.empty && dstAddr.empty) {
+        rval.flow = FlowRsyncToLocal(RsyncAddr(srcAddr, src), LocalAddr(dst));
+    } else if (srcAddr.empty && !dstAddr.empty) {
+        rval.flow = FlowLocalToRsync(LocalAddr(src), RsyncAddr(dstAddr, dst));
+    } else {
+        logger.warning("The combination of src, src_addr, dst and dst_addr is not supported. It either has to be local->local, local->remote, remote->local");
+    }
+
     return rval;
 }

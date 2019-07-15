@@ -6,10 +6,11 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 module dsnapshot.backup;
 
 import logger = std.experimental.logger;
+import std.array : empty;
 import std.exception : collectException;
 
 import dsnapshot.config : Config;
-import dsnapshot.types : Snapshot, Path, RsyncConfig, Hooks, LocalAddr;
+import dsnapshot.types;
 
 import sumtype;
 
@@ -90,7 +91,6 @@ void snapshot(Snapshot snapshot) {
     import std.file : exists, mkdirRecurse, rename;
     import std.path : buildPath, setExtension;
     import std.datetime : UTC, SysTime, Clock;
-    import dsnapshot.types;
 
     const newSnapshot = () {
         auto c = Clock.currTime;
@@ -100,7 +100,7 @@ void snapshot(Snapshot snapshot) {
 
     // Extract an updated layout of the snapshots at the destination.
     auto layout = snapshot.syncCmd.match!((None a) => snapshot.layout,
-            (RsyncConfig a) => fillLayout(snapshot.layout, a.flow));
+            (RsyncConfig a) => fillLayout(snapshot.layout, a.flow, snapshot.syncCmd));
 
     auto flow = snapshot.syncCmd.match!((None a) => None.init.Flow, (RsyncConfig a) => a.flow);
 
@@ -108,29 +108,47 @@ void snapshot(Snapshot snapshot) {
 
     snapshot.syncCmd.match!((None a) {
         logger.info("No sync done for ", snapshot.name, " (missing command configuration)");
-    }, (RsyncConfig a) => sync(a, layout, flow, snapshot.hooks, newSnapshot));
+    }, (RsyncConfig a) => sync(a, layout, flow, snapshot.hooks, snapshot.remoteCmd, newSnapshot));
 
     flow.match!((None a) {}, (FlowLocal a) {
         removeLocalSnapshots(a.dst, layout);
-    }, (FlowRsyncToLocal a) { removeLocalSnapshots(a.dst, layout); });
+    }, (FlowRsyncToLocal a) { removeLocalSnapshots(a.dst, layout); }, (FlowLocalToRsync a) {
+        removeRemoteSnapshots(flow, layout, snapshot.remoteCmd);
+    });
 }
 
 void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
-        const Hooks hooks, const string newSnapshot) {
+        const Hooks hooks, const RemoteCmd remoteCmd, const string newSnapshot) {
     import std.array : empty;
     import std.conv : to;
     import std.file : remove, exists, mkdirRecurse;
     import std.path : buildPath, setExtension;
-    import std.process : spawnProcess, wait, execute, spawnShell, executeShell;
+    import std.process : spawnProcess, wait, execute, spawnShell,
+        executeShell, escapeShellFileName;
     import std.stdio : stdin, File;
-    import dsnapshot.types;
 
-    static void setupLocalDest(Path p) {
+    static void setupLocalDest(const Path p) {
         if (!exists(p.toString))
             mkdirRecurse(p.toString);
     }
 
-    static int executeHooks(string msg, const string[] hooks, string[string] env) {
+    static void setupRemoteDest(const RemoteCmd remoteCmd, const RsyncAddr a,
+            const string newSnapshot) {
+        //string[] args = ssh.dup;
+        //args ~= sshMkdir;
+        //args ~= a.addr;
+        //args ~= buildPath(a.path, newSnapshot).escapeShellFileName;
+        //logger.info("%-(%s %)", args);
+        //spawnProcess(args).wait;
+    }
+
+    static string fixRsyncAddr(const string a) {
+        if (a.length != 0 && a[$ - 1] != '/')
+            return a ~ "/";
+        return a;
+    }
+
+    static int executeHooks(const string msg, const string[] hooks, const string[string] env) {
         foreach (s; hooks) {
             logger.info(msg, ": ", s);
             if (spawnShell(s, env).wait != 0)
@@ -159,6 +177,11 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
                 opts ~= [
                     "--link-dest", (a.dst.value.Path ~ latest.get.name.value).toString
                 ];
+            }, (FlowLocalToRsync a) {
+                opts ~= [
+                    "--link-dest",
+                    makeRsyncAddr(a.dst.addr, buildPath(a.dst.path, latest.get.name.value))
+                ];
             });
         }
 
@@ -166,12 +189,16 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
             opts ~= ["--exclude", a];
 
         flow.match!((None a) {}, (FlowLocal a) {
-            src = a.src.value;
+            src = fixRsyncAddr(a.src.value);
             dst = (a.dst.value.Path ~ newSnapshot).toString;
             opts ~= [src, dst];
         }, (FlowRsyncToLocal a) {
-            src = a.src.value;
+            src = fixRsyncAddr(makeRsyncAddr(a.src.addr, a.src.path));
             dst = (a.dst.value.Path ~ newSnapshot).toString;
+            opts ~= [src, dst];
+        }, (FlowLocalToRsync a) {
+            src = fixRsyncAddr(a.src.value);
+            dst = makeRsyncAddr(a.dst.addr, a.dst.path);
             opts ~= [src, dst];
         });
         return opts;
@@ -182,7 +209,8 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
     // TODO: add handling of remote destinations.
     // Configure local destination
     flow.match!((None a) {}, (FlowLocal a) => setupLocalDest(a.dst.value.Path ~ newSnapshot),
-            (FlowRsyncToLocal a) => setupLocalDest(a.dst.value.Path ~ newSnapshot));
+            (FlowRsyncToLocal a) => setupLocalDest(a.dst.value.Path ~ newSnapshot),
+            (FlowLocalToRsync a) => setupRemoteDest(remoteCmd, a.dst, newSnapshot));
 
     if (src.empty || dst.empty) {
         logger.info("source or destination is empty. Nothing to do.");
@@ -235,10 +263,12 @@ void removeLocalSnapshots(const LocalAddr local, const Layout layout) {
     }
 }
 
-import dsnapshot.layout : Name, Layout;
-import dsnapshot.types : Flow;
+void removeRemoteSnapshots(const Flow flow, const Layout layout_, const RemoteCmd cmd) {
+}
 
-auto fillLayout(Layout layout_, Flow flow) {
+import dsnapshot.layout : Name, Layout;
+
+auto fillLayout(Layout layout_, Flow flow, const SyncCmd cmd) {
     import std.algorithm : filter, map, sort;
     import std.array : array;
     import std.conv : to;
@@ -246,7 +276,6 @@ auto fillLayout(Layout layout_, Flow flow) {
     import std.file : dirEntries, SpanMode, exists, isDir;
     import std.path : baseName;
     import dsnapshot.layout : LSnapshot = Snapshot;
-    import dsnapshot.types : FlowLocal, FlowRsyncToLocal, None;
 
     auto rval = layout_;
     scope (exit)
@@ -254,7 +283,8 @@ auto fillLayout(Layout layout_, Flow flow) {
 
     const names = flow.match!((None a) => null,
             (FlowRsyncToLocal a) => snapshotNamesFromDir(a.dst.value.Path),
-            (FlowLocal a) => snapshotNamesFromDir(a.dst.value.Path));
+            (FlowLocal a) => snapshotNamesFromDir(a.dst.value.Path),
+            (FlowLocalToRsync a) => snapshotNamesFromSsh(cmd, a.dst.addr, a.dst.path));
 
     foreach (const n; names) {
         try {
@@ -290,6 +320,35 @@ Name[] snapshotNamesFromDir(Path dir) {
     return app.data;
 }
 
+Name[] snapshotNamesFromSsh(const SyncCmd cmd_, string addr, string path) {
+    import std.algorithm : map, copy;
+    import std.array : appender;
+    import std.string : splitLines;
+    import std.process : execute;
+
+    auto cmd = appender!(string[])();
+
+    cmd_.match!((None a) {}, (const RsyncConfig a) {
+        //cmd.put(a.cmdSsh);
+        //cmd.put(addr);
+        //cmd.put(a.cmdSshLs);
+        //cmd.put(path);
+    });
+    if (cmd.data.empty)
+        return null;
+
+    auto res = execute(cmd.data);
+    if (res.status != 0) {
+        logger.warning(res.output);
+        return null;
+    }
+
+    auto app = appender!(Name[])();
+    res.output.splitLines.map!(a => Name(a)).copy(app);
+
+    return app.data;
+}
+
 @("shall scan the directory for all snapshots")
 unittest {
     import std.conv : to;
@@ -299,7 +358,6 @@ unittest {
     import std.range : enumerate;
     import sumtype;
     import dsnapshot.layout : Layout, LayoutConfig, Span;
-    import dsnapshot.types : LocalAddr, FlowLocal, Flow;
 
     immutable tmpDir = "test_snapshot_scan";
     scope (exit)
@@ -321,7 +379,8 @@ unittest {
     auto conf = LayoutConfig([Span(5, 4.dur!"hours"), Span(5, 1.dur!"days")]);
     const base = Clock.currTime;
     auto layout = Layout(base, conf);
-    layout = fillLayout(layout, FlowLocal(LocalAddr(tmpDir), LocalAddr(tmpDir)).Flow);
+    layout = fillLayout(layout, FlowLocal(LocalAddr(tmpDir), LocalAddr(tmpDir))
+            .Flow, SyncCmd(None.init));
 
     layout.waiting.length.shouldEqual(0);
     layout.discarded.length.shouldEqual(20);

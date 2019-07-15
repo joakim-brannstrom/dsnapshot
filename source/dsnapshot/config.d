@@ -13,13 +13,26 @@ import colorlog;
 public import dsnapshot.types;
 
 struct Config {
-    import std.variant : Algebraic;
+    import std.variant : Algebraic, visit;
     static import std.getopt;
 
     struct Help {
     }
 
     struct Backup {
+    }
+
+    struct Remotecmd {
+        enum Command {
+            none,
+            lsDirs,
+            mkdirRecurse,
+            rmdirRecurse,
+        }
+
+        string path;
+        Command cmd;
+        std.getopt.GetoptResult helpInfo;
     }
 
     struct Global {
@@ -35,7 +48,7 @@ struct Config {
         string progName;
     }
 
-    alias Type = Algebraic!(Help, Backup);
+    alias Type = Algebraic!(Help, Backup, Remotecmd);
     Type data;
 
     Global global;
@@ -53,5 +66,9 @@ struct Config {
         static foreach (T; Type.AllowedTypes) {
             writeln("  ", T.stringof.toLower);
         }
+
+        data.visit!((Help a) {}, (Backup a) {}, (Remotecmd a) {
+            defaultGetoptPrinter("remotecmd:", a.helpInfo.options);
+        });
     }
 }

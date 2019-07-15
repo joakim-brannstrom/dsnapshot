@@ -79,7 +79,10 @@ struct Snapshot {
     /// Name of this snapshot
     string name;
 
-    SumType!(None, RsyncConfig) syncCmd;
+    SyncCmd syncCmd;
+
+    /// How to interact with the destination for e.g. list snapshots.
+    RemoteCmd remoteCmd;
 
     /// The snapshot layout to use.
     Layout layout;
@@ -92,6 +95,24 @@ struct Hooks {
     string[] postExec;
 }
 
+alias RemoteCmd = SumType!(None, SshRemoteCmd);
+
+/// Info of how to execute dsnapshot on the remote host.
+struct SshRemoteCmd {
+    /// Path/lookup to use to find dsnapshot on the remote host.
+    string path = "dsnapshot";
+
+    /// dsnapshot is executed via ssh or equivalent command.
+    string[] cmd = ["ssh"];
+
+    /// Returns: a cmd to execute with `std.process`.
+    string[] toCmd(string[] args) @safe pure nothrow const {
+        return cmd ~ [path] ~ args;
+    }
+}
+
+alias SyncCmd = SumType!(None, RsyncConfig);
+
 struct None {
 }
 
@@ -100,14 +121,14 @@ struct LocalAddr {
 }
 
 struct RsyncAddr {
-    string value;
+    string addr;
+    string path;
+}
 
-    this(string a) {
-        if (a.length != 0 && a[$ - 1] != '/')
-            value = a ~ "/";
-        else
-            value = a;
-    }
+string makeRsyncAddr(string addr, string path) {
+    import std.format : format;
+
+    return format("%s:%s", addr, path);
 }
 
 /// Local flow of data.
@@ -122,7 +143,12 @@ struct FlowRsyncToLocal {
     LocalAddr dst;
 }
 
-alias Flow = SumType!(None, FlowLocal, FlowRsyncToLocal);
+struct FlowLocalToRsync {
+    LocalAddr src;
+    RsyncAddr dst;
+}
+
+alias Flow = SumType!(None, FlowLocal, FlowRsyncToLocal, FlowLocalToRsync);
 
 struct RsyncConfig {
     Flow flow;
