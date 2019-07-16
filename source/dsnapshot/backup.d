@@ -133,7 +133,7 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
 
     static void setupRemoteDest(const RemoteCmd remoteCmd, const RsyncAddr addr,
             const string newSnapshot) {
-        string[] cmd = remoteCmd.match!((None a) => null, (const SshRemoteCmd a) {
+        string[] cmd = remoteCmd.match!((const SshRemoteCmd a) {
             return a.toCmd(RemoteSubCmd.mkdirRecurse, addr.addr,
                 buildPath(addr.path, newSnapshot));
         });
@@ -270,7 +270,7 @@ void removeRemoteSnapshots(const RsyncAddr addr, const Layout layout, const Remo
     import std.process : spawnProcess, wait;
 
     foreach (const name; layout.discarded.map!(a => a.name)) {
-        auto cmd = cmd_.match!((None a) => null, (const SshRemoteCmd a) {
+        auto cmd = cmd_.match!((const SshRemoteCmd a) {
             return a.toCmd(RemoteSubCmd.rmdirRecurse, addr.addr, buildPath(addr.path, name.value));
         });
 
@@ -344,7 +344,7 @@ Name[] snapshotNamesFromSsh(const RemoteCmd cmd_, string addr, string path) {
     import std.process : execute;
     import std.string : splitLines;
 
-    auto cmd = cmd_.match!((None a) => null, (const SshRemoteCmd a) {
+    auto cmd = cmd_.match!((const SshRemoteCmd a) {
         return a.toCmd(RemoteSubCmd.lsDirs, addr, path);
     });
     if (cmd.empty)
@@ -393,7 +393,7 @@ unittest {
     const base = Clock.currTime;
     auto layout = Layout(base, conf);
     layout = fillLayout(layout, FlowLocal(LocalAddr(tmpDir), LocalAddr(tmpDir))
-            .Flow, RemoteCmd(None.init));
+            .Flow, RemoteCmd(SshRemoteCmd.init));
 
     layout.waiting.length.shouldEqual(0);
     layout.discarded.length.shouldEqual(20);

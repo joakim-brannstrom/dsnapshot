@@ -95,7 +95,7 @@ struct Hooks {
     string[] postExec;
 }
 
-alias RemoteCmd = SumType!(None, SshRemoteCmd);
+alias RemoteCmd = SumType!(SshRemoteCmd);
 
 enum RemoteSubCmd {
     none,

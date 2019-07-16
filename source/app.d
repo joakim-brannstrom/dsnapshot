@@ -190,17 +190,16 @@ void loadConfig(ref Config conf) @trusted {
                         s.layout = layout;
                         break;
                     case "dsnapshot":
-                        auto binary = v.str;
-                        s.remoteCmd = s.remoteCmd.match!((None a) => SshRemoteCmd(binary),
-                                (SshRemoteCmd a) { a.dsnapshot = binary; return a; });
+                        s.remoteCmd = s.remoteCmd.match!((SshRemoteCmd a) {
+                            a.dsnapshot = v.str;
+                            return a;
+                        });
                         break;
                     case "rsh":
-                        auto rsh = v.array.map!(a => a.str).array;
-                        s.remoteCmd = s.remoteCmd.match!((None a) {
-                            auto tmp = SshRemoteCmd.init;
-                            tmp.rsh = rsh;
-                            return tmp;
-                        }, (SshRemoteCmd a) { a.rsh = rsh; return a; });
+                        s.remoteCmd = s.remoteCmd.match!((SshRemoteCmd a) {
+                            a.rsh = v.array.map!(a => a.str).array;
+                            return a;
+                        });
                         break;
                     default:
                         logger.infof("Unknown option '%s' in section 'snapshot.%s' in configuration",
