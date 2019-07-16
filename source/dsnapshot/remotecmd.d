@@ -38,9 +38,25 @@ int cmdRemote(const Config.Remotecmd conf) nothrow {
         }
         break;
     case RemoteSubCmd.rmdirRecurse:
+        if (!exists(conf.path))
+            return 0;
+
         try {
-            if (exists(conf.path))
-                rmdirRecurse(conf.path);
+            // can fail because a directory is write protected.
+            rmdirRecurse(conf.path);
+            return 0;
+        } catch (Exception e) {
+        }
+
+        try {
+            foreach (const p; dirEntries(conf.path, SpanMode.depth).filter!(a => a.isDir)) {
+                import core.sys.posix.sys.stat;
+                import std.file : getAttributes, setAttributes;
+
+                const attrs = getAttributes(p);
+                setAttributes(p, attrs | S_IRWXU);
+            }
+            rmdirRecurse(conf.path);
         } catch (Exception e) {
             logger.warning(e.msg).collectException;
         }

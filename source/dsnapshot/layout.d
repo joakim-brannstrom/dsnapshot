@@ -113,7 +113,7 @@ struct Layout {
     /// Snapshots collected for pass two.
     Snapshot[] waiting;
 
-    /// Snapshots that has been discarded because they do not have the best fit for any bucket.
+    /// Snapshots that has been discarded because they do are not the best fit for any bucket.
     Snapshot[] discarded;
 
     this(const SysTime start, const LayoutConfig conf) {
