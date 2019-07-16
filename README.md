@@ -147,6 +147,12 @@ rsh = ["ssh", "-p1234"]
 rsync_rsh = "ssh"
 ```
 
+The location of where to find `dsnapshot` on the remote host can be configured:
+```toml
+[snapshot.example]
+dsnapshot = "/path/to/dsnapshot"
+```
+
 ## Example 1: Backups kept over a year
 
 This will create create a total span of backups that has a higher frequency the
@@ -178,13 +184,6 @@ span.1.interval = "4 hours"
 src = "~/example"
 dst = "~/backup/example"
 dst_addr = "other_host"
-```
-
-The location of where to find `dsnapshot` on the remote host can be configured
-with the key dsnapshot:
-```toml
-[snapshot.example]
-dsnapshot = "/path/to/dsnapshot"
 ```
 
 ## Example 3: Backup from a remote host
