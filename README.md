@@ -39,7 +39,11 @@ Don't be shy to report any issue that you find.
 
 # Configuration
 
-The configuration structure is named snapshots with their individual
+**dsnapshot** look by default for the configuration file `.dsnapshot.toml` in
+the current directory. The configuration file can be manually specified via
+`-c`.
+
+The configuration structure is *named snapshots* with their individual
 configuration.
 
 Each snapshot consist of at least one span and src/dst configuration in the
