@@ -368,6 +368,9 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
         case "rsync_args":
             rval.args = data.array.map!(a => a.str).array;
             break;
+        case "progress":
+            rval.progress = data.array.map!(a => a.str).array;
+            break;
         default:
             logger.infof("Unknown option '%s' in section 'snapshot.%s.rsync' in configuration",
                     key, parent);

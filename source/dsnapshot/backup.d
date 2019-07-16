@@ -169,6 +169,9 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
         if (!conf.rsh.empty)
             opts ~= ["-e", conf.rsh];
 
+        if (isInteractiveShell)
+            opts ~= conf.progress;
+
         if (conf.oneFs && !latest.isNull)
             opts ~= ["-x"];
 
@@ -407,4 +410,11 @@ unittest {
     /// these buckets are filled by the second  pass
     (base - layout.snapshotTimeInBucket(8).get).total!"hours".shouldEqual(4 * 5 + 24 * 4 - 31);
     (base - layout.snapshotTimeInBucket(9).get).total!"hours".shouldEqual(4 * 5 + 24 * 5 - 60);
+}
+
+bool isInteractiveShell() {
+    import core.stdc.stdio;
+    import core.sys.posix.unistd;
+
+    return isatty(STDERR_FILENO) && isatty(STDOUT_FILENO);
 }

@@ -128,7 +128,7 @@ exclude = ["path/to/exclude"]
 The default arguments for rsync can be changed.
 ```toml
 [snapshot.example.rsync]
-rsync_args = ["-ahv", "--partial", "--delete", "--numeric-ids", "--delete-excluded"]
+rsync_args = ["-ahv", "--partial", "--delete", "--numeric-ids", "--delete-excluded", "--modify-window", "1"]
 ```
 
 Sometimes the default rsync from the path can't be used. In that case **dsnapshot** can be configured to use an alternative rsync.
@@ -144,13 +144,22 @@ has  overlap with `rsync_rsh`. The difference is that `rsh` is used as is while
 [snapshot.example]
 rsh = ["ssh", "-p1234"]
 [snapshot.example.rsync]
-rsync_rsh = "ssh"
+rsync_rsh = "ssh -p1234"
 ```
 
 The location of where to find `dsnapshot` on the remote host can be configured:
 ```toml
 [snapshot.example]
 dsnapshot = "/path/to/dsnapshot"
+```
+
+A progress bar, via rsync, is display when dsnapshot is executed in interactive
+mode. This can be changed or turned off.
+```toml
+[snapshot.example.rsync]
+progress = ["--info=progress1"]
+# or turn off
+progress = []
 ```
 
 ## Example 1: Backups kept over a year

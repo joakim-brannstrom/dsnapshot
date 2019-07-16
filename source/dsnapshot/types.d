@@ -192,6 +192,9 @@ struct RsyncConfig {
     /// rsh argument for rsync, --rsh=<rsh>.
     string rsh;
 
+    /// Configure how to print the progress bar when in interactive shell, if any.
+    string[] progress = ["--info=stats1", "--info=progress2"];
+
     // -a archive mode; equals -rlptgoD (no -H,-A,-X)
     // -r recursive
     // -l copy symlinks as symlinks
@@ -205,7 +208,9 @@ struct RsyncConfig {
     // --partial keep partially transferred files
     // --numeric-ids don't map uid/gid values by user/group name
     // --delete-excluded also delete excluded files from dest dirs
+    // --modify-window set the accuracy for mod-time comparisons
     string[] args = [
         "-ahv", "--partial", "--delete", "--numeric-ids", "--delete-excluded",
+        "--modify-window", "1"
     ];
 }
