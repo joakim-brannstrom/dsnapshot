@@ -218,7 +218,7 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
 
     logger.infof("Synchronizing '%s' to '%s'", src, dst);
 
-    string[string] hookEnv = ["DSNAPSHOT_WORK" : dst];
+    string[string] hookEnv = ["DSNAPSHOT_SRC" : src, "DSNAPSHOT_DST" : dst];
 
     if (executeHooks("pre_exec", hooks.preExec, hookEnv) != 0)
         throw new SnapshotException(SnapshotException.PreExecFailed.init.SnapshotError);

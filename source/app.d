@@ -342,10 +342,10 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
         case "one_fs":
             rval.oneFs = data == true;
             break;
-        case "use_fakeroot":
+        case "fakeroot":
             rval.useFakeRoot = data == true;
             break;
-        case "use_link_dest":
+        case "link_dest":
             rval.useLinkDest = data == true;
             break;
         case "low_prio":
@@ -354,7 +354,7 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
         case "exclude":
             rval.exclude = data.array.map!(a => a.str).array;
             break;
-        case "rsync_args":
+        case "args":
             rval.args = data.array.map!(a => a.str).array;
             break;
         default:
