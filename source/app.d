@@ -191,7 +191,16 @@ void loadConfig(ref Config conf) @trusted {
                         break;
                     case "dsnapshot":
                         auto binary = v.str;
-                        s.remoteCmd = SshRemoteCmd(binary).RemoteCmd;
+                        s.remoteCmd = s.remoteCmd.match!((None a) => SshRemoteCmd(binary),
+                                (SshRemoteCmd a) { a.dsnapshot = binary; return a; });
+                        break;
+                    case "rsh":
+                        auto rsh = v.array.map!(a => a.str).array;
+                        s.remoteCmd = s.remoteCmd.match!((None a) {
+                            auto tmp = SshRemoteCmd.init;
+                            tmp.rsh = rsh;
+                            return tmp;
+                        }, (SshRemoteCmd a) { a.rsh = rsh; return a; });
                         break;
                     default:
                         logger.infof("Unknown option '%s' in section 'snapshot.%s' in configuration",
@@ -354,7 +363,10 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
         case "exclude":
             rval.exclude = data.array.map!(a => a.str).array;
             break;
-        case "args":
+        case "rsync_cmd":
+            rval.cmdRsync = data.str;
+            break;
+        case "rsync_args":
             rval.args = data.array.map!(a => a.str).array;
             break;
         default:
