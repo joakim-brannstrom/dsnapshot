@@ -200,15 +200,12 @@ struct RsyncConfig {
     // -g preserve groups permissions
     // -o preserve owner permission
     // -D preserve devices
-    // --delay-updates save files in a destination directory and then do a atomic update
     // --delete delete files from dest if they are removed in src
     // --chmod change permission on transfered files
     // --partial keep partially transferred files
     // --numeric-ids don't map uid/gid values by user/group name
-    // --relative use relative path names
     // --delete-excluded also delete excluded files from dest dirs
     string[] args = [
-        "-ahv", "--partial", "--delay-updates", "--delete", "--numeric-ids",
-        "--delete-excluded",
+        "-ahv", "--partial", "--delete", "--numeric-ids", "--delete-excluded",
     ];
 }
