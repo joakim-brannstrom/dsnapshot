@@ -137,6 +137,16 @@ Sometimes the default rsync from the path can't be used. In that case **dsnapsho
 rsync_cmd = "path/to/rsync"
 ```
 
+The command use for remote shell execution of snapshots can be configured. It
+has  overlap with `rsync_rsh`. The difference is that `rsh` is used as is while
+`rsync_rsh` configures rsync via `--rsh=<rsync_rsh>`.
+```toml
+[snapshot.example]
+rsh = ["ssh", "-p1234"]
+[snapshot.example.rsync]
+rsync_rsh = "ssh"
+```
+
 ## Example 1: Backups kept over a year
 
 This will create create a total span of backups that has a higher frequency the

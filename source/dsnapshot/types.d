@@ -189,6 +189,9 @@ struct RsyncConfig {
     /// Rsync command to use
     string cmdRsync = "rsync";
 
+    /// rsh argument for rsync, --rsh=<rsh>.
+    string rsh;
+
     // -a archive mode; equals -rlptgoD (no -H,-A,-X)
     // -r recursive
     // -l copy symlinks as symlinks

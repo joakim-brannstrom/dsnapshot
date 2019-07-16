@@ -166,6 +166,9 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
 
         const latest = layout.firstFullBucket;
 
+        if (!conf.rsh.empty)
+            opts ~= ["-e", conf.rsh];
+
         if (conf.oneFs && !latest.isNull)
             opts ~= ["-x"];
 
