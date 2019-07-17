@@ -12,13 +12,11 @@ unittest {
     makeTestArea;
 }
 
-@("shall snapshot local data to dest when executed")
+@("shall snapshot local data to dest when executed backup")
 unittest {
     auto ta = makeTestArea;
-    const src = ta.inSandboxPath("src");
-    mkdir(src);
-    File(buildPath(src, "file.txt"), "w").write("some data");
-    copy(buildPath(testData, "test_local.toml"), ta.inSandboxPath(".dsnapshot.toml"));
+    ta.writeConfigFromTemplate(inTestData("test_local.toml"), ta.sandboxPath);
+    ta.writeDummyData("some data");
 
     ta.execDs("backup").status.shouldEqual(0);
 
@@ -28,17 +26,11 @@ unittest {
     readText(found[0]).shouldEqual("some data");
 }
 
-@("shall snapshot remote to local dest when executed")
+@("shall snapshot remote to local dest when executed backup")
 unittest {
     auto ta = makeTestArea;
-    {
-        const tmpl = readText(buildPath(testData, "test_remote_to_local.toml"));
-        File(ta.inSandboxPath(".dsnapshot.toml"), "w").writef(tmpl, ta.sandboxPath);
-
-        const src = buildPath(ta.sandboxPath, "src");
-        mkdir(src);
-        File(buildPath(src, "file.txt"), "w").write("some data");
-    }
+    ta.writeConfigFromTemplate(inTestData("test_remote_to_local.toml"), ta.sandboxPath);
+    ta.writeDummyData("some data");
 
     ta.execDs("backup").status.shouldEqual(0);
 
@@ -48,18 +40,12 @@ unittest {
     readText(found[0]).shouldEqual("some data");
 }
 
-@("shall snapshot local to remote dest when executed")
+@("shall snapshot local to remote dest when executed backup")
 unittest {
     auto ta = makeTestArea;
-    {
-        const tmpl = readText(buildPath(testData, "test_local_to_remote.toml"));
-        File(buildPath(ta.sandboxPath, ".dsnapshot.toml"), "w").writef(tmpl,
-                dsnapshotPath, buildPath(ta.sandboxPath));
-
-        const src = buildPath(ta.sandboxPath, "src");
-        mkdir(src);
-        File(buildPath(src, "file.txt"), "w").write("some data");
-    }
+    ta.writeConfigFromTemplate(inTestData("test_local_to_remote.toml"),
+            dsnapshotPath, ta.sandboxPath);
+    ta.writeDummyData("some data");
 
     ta.execDs("backup").status.shouldEqual(0);
 
@@ -67,4 +53,26 @@ unittest {
     found.length.shouldEqual(1);
     found[0].dirName.dirName.baseName.shouldEqual("dst");
     readText(found[0]).shouldEqual("some data");
+}
+
+@("shall keep nr+1 snapshots from a multi-span configuration when executing backup")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_multiple_spans.toml"), ta.sandboxPath);
+    ta.writeDummyData("some data");
+
+    foreach (a; 0 .. 16) {
+        import core.thread : Thread;
+        import core.time : dur;
+
+        Thread.sleep(10.dur!"msecs");
+        ta.execDs("backup").status.shouldEqual(0);
+    }
+
+    const found = ta.findFile("dst", "file.txt");
+    found.length.shouldEqual(14);
+    foreach (f; found) {
+        f.dirName.dirName.baseName.shouldEqual("dst");
+        readText(f).shouldEqual("some data");
+    }
 }

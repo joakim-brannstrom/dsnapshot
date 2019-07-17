@@ -25,6 +25,10 @@ string testData() {
     return "testdata".absolutePath;
 }
 
+string inTestData(string p) {
+    return buildPath(testData, p);
+}
+
 string tmpDir() {
     return "build/test".absolutePath;
 }
@@ -50,7 +54,10 @@ struct TestArea {
         string[] args;
         static foreach (a; args_)
             args ~= a;
-        return executeDsnapshot(args, sandboxPath);
+        auto res = executeDsnapshot(args, sandboxPath);
+        if (res.status != 0)
+            File(inSandboxPath("command.log"), "w").write(res.output);
+        return res;
     }
 
     string[] findFile(string subDir, string basename) {
@@ -67,6 +74,17 @@ struct TestArea {
 
         return buildPath(sandboxPath, fileName);
     }
+}
+
+void writeConfigFromTemplate(Args...)(auto ref TestArea ta, string tmplPath, auto ref Args args) {
+    const tmpl = readText(tmplPath);
+    File(ta.inSandboxPath(".dsnapshot.toml"), "w").writef(tmpl, args);
+}
+
+void writeDummyData(ref TestArea ta, string content) {
+    const src = ta.inSandboxPath("src");
+    mkdir(src);
+    File(buildPath(src, "file.txt"), "w").write(content);
 }
 
 private:
