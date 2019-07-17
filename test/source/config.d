@@ -10,8 +10,6 @@ public import std;
 
 public import unit_threaded.assertions;
 
-immutable tmpDir = "build/testdata";
-
 string dsnapshotPath() {
     foreach (a; ["../build/dsnapshot"].filter!(a => exists(a)))
         return a.absolutePath;
@@ -27,25 +25,47 @@ string testData() {
     return "testdata".absolutePath;
 }
 
+string tmpDir() {
+    return "build/test".absolutePath;
+}
+
 auto makeTestArea(string file = __FILE__, int line = __LINE__) {
     return TestArea(file, line);
 }
 
 struct TestArea {
-    const string workdir;
+    const string sandboxPath;
 
     this(string file, int line) {
         prepare();
-        workdir = buildPath(tmpDir, file.baseName ~ line.to!string).absolutePath;
+        sandboxPath = buildPath(tmpDir, file.baseName ~ line.to!string).absolutePath;
 
-        if (exists(workdir)) {
-            rmdirRecurse(workdir);
+        if (exists(sandboxPath)) {
+            rmdirRecurse(sandboxPath);
         }
-        mkdirRecurse(workdir);
+        mkdirRecurse(sandboxPath);
     }
 
-    auto execDs(string[] args) {
-        return executeDsnapshot(args, workdir);
+    auto execDs(Args...)(auto ref Args args_) {
+        string[] args;
+        static foreach (a; args_)
+            args ~= a;
+        return executeDsnapshot(args, sandboxPath);
+    }
+
+    string[] findFile(string subDir, string basename) {
+        string[] files;
+        foreach (p; dirEntries(buildPath(sandboxPath, subDir), SpanMode.depth).filter!(
+                a => a.baseName == basename))
+            files ~= p.name;
+        logger.errorf(files.length == 0, "File %s not found in ", basename, subDir);
+        return files;
+    }
+
+    string inSandboxPath(in string fileName) @safe pure nothrow const {
+        import std.path : buildPath;
+
+        return buildPath(sandboxPath, fileName);
     }
 }
 

@@ -1,0 +1,8 @@
+[snapshot.b]
+dsnapshot = "%1$s"
+span.1.nr = 5
+span.1.interval = "5 minutes"
+[snapshot.b.rsync]
+src = "%2$s/src"
+dst = "%2$s/dst"
+dst_addr = "localhost"

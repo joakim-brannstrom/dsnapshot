@@ -5,8 +5,8 @@ copyright "Copyright © 2019, Joakim Brännström"
 license "BSL-1.0"
 
 dependency "colorlog" version="~>0.0.2"
-dependency "sumtype" version="~>0.8.6"
-dependency "toml" version="~>1.0.0-rc.3"
+dependency "sumtype" version="~>0.8"
+dependency "toml" version="~>1.0"
 
 targetPath "build"
 
@@ -15,7 +15,7 @@ configuration "application" {
 }
 
 configuration "unittest" {
-    dependency "unit-threaded" version="~>0.9.4"
+    dependency "unit-threaded" version="~>0.9"
     targetType "executable"
     mainSourceFile "build/ut.d"
     preBuildCommands "dub run unit-threaded -c gen_ut_main -- -f build/ut.d"
