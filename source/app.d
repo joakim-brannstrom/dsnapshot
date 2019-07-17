@@ -16,9 +16,10 @@ import colorlog;
 
 import dsnapshot.backup;
 import dsnapshot.config;
-import dsnapshot.remotecmd;
 
 int main(string[] args) {
+    import dsnapshot.cmdgroup.remote;
+
     confLogger(VerboseMode.info);
 
     auto conf = parseUserArgs(args);
