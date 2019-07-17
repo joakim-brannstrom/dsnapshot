@@ -44,10 +44,13 @@ int main(string[] args) {
           (Config.Help a) => cmdHelp(conf),
           (Config.Backup a) {
           loadConfig(conf);
-          logger.trace(conf);
           return cmdBackup(conf.global, a, conf.snapshots);
           },
           (Config.Remotecmd a) => cmdRemote(a),
+          (Config.Diskusage a) {
+          loadConfig(conf);
+          return cmdDiskUsage(conf.snapshots, a);
+          }
     );
     // dfmt on
 }
@@ -109,6 +112,18 @@ Config parseUserArgs(string[] args) @trusted {
             // dfmt on
         }
 
+        void diskusageParse() {
+            Config.Diskusage data;
+            scope (success)
+                conf.data = data;
+
+            // dfmt off
+            data.helpInfo = std.getopt.getopt(args,
+                "s|snapshot", "Name of the snapshot to calculate the disk usage for", &data.name.value,
+                );
+            // dfmt on
+        }
+
         alias ParseFn = void delegate();
         ParseFn[string] parsers;
 
@@ -146,6 +161,9 @@ void loadConfig(ref Config conf) @trusted {
     import std.file : exists, readText, isFile;
     import std.path : dirName, buildPath;
     import toml;
+
+    scope (exit)
+        logger.trace(conf);
 
     if (!exists(conf.global.confFile.toString) || !conf.global.confFile.toString.isFile) {
         logger.errorf("Configuration %s do not exist", conf.global.confFile);
@@ -331,6 +349,7 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
     import dsnapshot.types;
 
     RsyncConfig rval;
+
     string src, srcAddr, dst, dstAddr;
     foreach (key, data; tv) {
         switch (key) {

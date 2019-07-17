@@ -72,6 +72,11 @@ struct Path {
     }
 }
 
+/// Name of an existing snapshot.
+struct Name {
+    string value;
+}
+
 //TODO: rename to SnapshotConfig
 struct Snapshot {
     import dsnapshot.layout : Layout;

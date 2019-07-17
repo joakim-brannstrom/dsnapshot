@@ -23,8 +23,15 @@ struct Config {
     }
 
     struct Remotecmd {
+        /// Single path to modify on the remote host.
         string path;
         RemoteSubCmd cmd;
+        std.getopt.GetoptResult helpInfo;
+    }
+
+    struct Diskusage {
+        /// Name of the snapshot to calculate the disk usage of.
+        Name name;
         std.getopt.GetoptResult helpInfo;
     }
 
@@ -38,7 +45,7 @@ struct Config {
         string progName;
     }
 
-    alias Type = Algebraic!(Help, Backup, Remotecmd);
+    alias Type = Algebraic!(Help, Backup, Remotecmd, Diskusage);
     Type data;
 
     Global global;
@@ -59,6 +66,8 @@ struct Config {
 
         data.visit!((Help a) {}, (Backup a) {}, (Remotecmd a) {
             defaultGetoptPrinter("remotecmd:", a.helpInfo.options);
+        }, (Diskusage a) {
+            defaultGetoptPrinter("diskusage:", a.helpInfo.options);
         });
     }
 }

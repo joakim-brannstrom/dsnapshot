@@ -21,16 +21,13 @@ import std.datetime : SysTime, Duration, dur, Clock;
 import std.range : repeat, enumerate;
 import std.typecons : Nullable;
 
+public import dsnapshot.types : Name;
+
 version (unittest) {
     import unit_threaded.assertions;
 }
 
 @safe:
-
-/// Name of an existing snapshot.
-struct Name {
-    string value;
-}
 
 struct Snapshot {
     /// The time the snapshot was taken.
