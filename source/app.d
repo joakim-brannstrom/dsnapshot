@@ -14,10 +14,11 @@ import std.string;
 
 import colorlog;
 
-import dsnapshot.backup;
 import dsnapshot.config;
 
 int main(string[] args) {
+    import dsnapshot.cmdgroup.backup;
+    import dsnapshot.cmdgroup.diskusage;
     import dsnapshot.cmdgroup.remote;
 
     confLogger(VerboseMode.info);
