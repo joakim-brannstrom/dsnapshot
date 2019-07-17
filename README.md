@@ -121,13 +121,13 @@ The use of `--link-dest` for rsync can be turned off:
 link_dest = false
 ```
 
-Normally rsync is prohibited from crossing the filesystem. This can be turned off.
+Normally dsnapshot is prohibited from crossing the filesystem. This can be turned off.
 ```toml
 [snapshot.example.rsync]
-one_fs = false
+cross_fs = false
 ```
 
-Rsync can be configured to exclude directories.
+Dsnapshot can be configured to exclude directories.
 ```toml
 [snapshot.example.rsync]
 exclude = ["path/to/exclude"]
@@ -139,7 +139,8 @@ The default arguments for rsync can be changed.
 rsync_args = ["-ahv", "--partial", "--delete", "--numeric-ids", "--delete-excluded", "--modify-window", "1"]
 ```
 
-Sometimes the default rsync from the path can't be used. In that case **dsnapshot** can be configured to use an alternative rsync.
+If the default rsync from the path can't be used. In that case **dsnapshot**
+can be configured to use an alternative rsync.
 ```toml
 [snapshot.example.rsync]
 rsync_cmd = "path/to/rsync"
@@ -161,7 +162,7 @@ The location of where to find `dsnapshot` on the remote host can be configured:
 dsnapshot = "/path/to/dsnapshot"
 ```
 
-A progress bar, via rsync, is display when dsnapshot is executed in interactive
+A progress bar, via rsync, is displayed when dsnapshot is executed in interactive
 mode. This can be changed or turned off.
 ```toml
 [snapshot.example.rsync]

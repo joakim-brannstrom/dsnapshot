@@ -349,7 +349,7 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
         case "cmd_rsync":
             rval.cmdRsync = data.str;
             break;
-        case "one_fs":
+        case "cross_fs":
             rval.oneFs = data == true;
             break;
         case "fakeroot":
