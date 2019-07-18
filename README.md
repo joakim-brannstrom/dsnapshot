@@ -149,7 +149,7 @@ rsync_cmd = "path/to/rsync"
 The command used to calculate the disk usage is by default `du` but can be changed.
 ```toml
 [snapshot.example.rsync]
-du_cmd = "path/to/du"
+diskusage_cmd = ["path/to/du", "-hcs"]
 ```
 
 The command use for remote shell execution of snapshots can be configured. It
