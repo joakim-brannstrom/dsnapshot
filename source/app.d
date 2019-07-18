@@ -238,6 +238,7 @@ void loadConfig(ref Config conf) @trusted {
         foreach (name, data; snapshots) {
             Snapshot s;
             s.name = name;
+            s.layout = makeDefaultLayout;
             foreach (k, v; data) {
                 try {
                     switch (k) {
@@ -276,19 +277,6 @@ void loadConfig(ref Config conf) @trusted {
                 }
             }
             c.snapshots ~= s;
-        }
-    };
-
-    tables["main"] = (ref Config c, ref TOMLValue table) {
-        foreach (k, v; table) {
-            try {
-                switch (k) {
-                default:
-                    logger.infof("Unknown option '%s' in section 'main' in configuration", k);
-                }
-            } catch (Exception e) {
-                logger.error(e.msg).collectException;
-            }
         }
     };
 
@@ -349,8 +337,12 @@ auto parseLayout(ref TOMLValue tv) @trusted {
             case "days":
                 d += nr.dur!"days";
                 break;
+            case "weeks":
+                d += nr.dur!"weeks";
+                break;
             default:
-                logger.warningf("Invalid unit '%s'. Valid are minutes, hours and days.", p[1]);
+                logger.warningf("Invalid unit '%s'. Valid are minutes, hours, days and weeks.",
+                        p[1]);
                 return rval;
             }
         }
@@ -458,4 +450,17 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
     }
 
     return rval;
+}
+
+/** The default layout to use if none is specified by the user.
+ */
+auto makeDefaultLayout() {
+    import std.datetime : Clock, dur;
+    import dsnapshot.layout;
+
+    const base = Clock.currTime;
+    auto conf = LayoutConfig([
+            Span(6, 4.dur!"hours"), Span(6, 1.dur!"days"), Span(3, 1.dur!"weeks")
+            ]);
+    return Layout(base, conf);
 }

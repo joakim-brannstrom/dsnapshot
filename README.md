@@ -81,7 +81,7 @@ span.<id>.nr = <numerical value>
 span.<id>.interval = "<value> <unit>"
 ```
 
-The supported unites for the interval are `days`, `hours` and `minutes`. These
+The supported unites for the interval are `weeks`, `days`, `hours` and `minutes`. These
 can be written in any order, combination and multiple times.
 
 Multiple spans are concatenated together to a total *snapshot layout*. The
@@ -103,6 +103,18 @@ span nr: --1--|--------------2-------------------|
 
 There may intermittently exist +1 backup because **dsnapshot** scans the
 destination for backups before it creates its new one.
+
+The default span is:
+```toml
+span.1.nr = 6
+span.1.interval = "4 hours"
+span.2.nr = 6
+span.2.interval = "1 days"
+span.2.nr = 3
+span.2.interval = "1 weeks"
+```
+
+It keeps the backups for up to a month.
 
 ## Advanced config
 
