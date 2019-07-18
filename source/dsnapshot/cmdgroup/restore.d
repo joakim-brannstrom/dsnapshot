@@ -7,7 +7,6 @@ module dsnapshot.cmdgroup.restore;
 
 import logger = std.experimental.logger;
 import std.array : empty;
-import std.algorithm;
 import std.exception : collectException;
 
 import dsnapshot.config : Config;
@@ -16,6 +15,7 @@ import dsnapshot.layout_utils;
 import dsnapshot.types;
 
 int cmdRestore(Snapshot[] snapshots, const Config.Restore conf) nothrow {
+    import std.algorithm : map, filter;
     import dsnapshot.layout;
     import dsnapshot.layout_utils;
 
