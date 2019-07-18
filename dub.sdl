@@ -6,7 +6,7 @@ license "BSL-1.0"
 
 dependency "colorlog" version="~>0.0.2"
 dependency "sumtype" version="~>0.8"
-dependency "toml" version="~>1.0"
+dependency "toml" version="~>1.0.0-rc.3"
 
 targetPath "build"
 
