@@ -46,6 +46,8 @@ struct Config {
         SysTime time;
         /// Path to restore the named snapshot to.
         string restoreTo;
+        /// Delete files from restoreTo if they have been removed in src
+        bool deleteFromTo;
 
         std.getopt.GetoptResult helpInfo;
     }

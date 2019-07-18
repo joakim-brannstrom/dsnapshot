@@ -149,9 +149,10 @@ Config parseUserArgs(string[] args) @trusted {
             string time;
             // dfmt off
             data.helpInfo = std.getopt.getopt(args,
+                "delete", "Delete files from dst if they are removed in the snapshot", &data.deleteFromTo,
                 "dst", "Where to restore the snapshot", &data.restoreTo,
                 "s|snapshot", "Name of the snapshot to calculate the disk usage for", &data.name.value,
-                "time", "Pick the snapshot that is closest to this time (default: now). Add a trailing Z if UTC", &time
+                "time", "Pick the snapshot that is closest to this time (default: now). Add a trailing Z if UTC", &time,
                 );
             // dfmt on
 

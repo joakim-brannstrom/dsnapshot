@@ -82,6 +82,11 @@ int restore(const RsyncConfig conf, Snapshot snapshot, const Config.Restore rcon
         if (isInteractiveShell)
             opts ~= conf.progress;
 
+        if (rconf.deleteFromTo) {
+            // --delete delete files from dest if they are removed in src
+            opts ~= ["--delete"];
+        }
+
         foreach (a; conf.exclude)
             opts ~= ["--exclude", a];
 
