@@ -194,6 +194,9 @@ struct RsyncConfig {
     /// Rsync command to use
     string cmdRsync = "rsync";
 
+    /// disk usage command to use.
+    string[] cmdDiskUsage = ["du", "-hcs"];
+
     /// rsh argument for rsync, --rsh=<rsh>.
     string rsh;
 

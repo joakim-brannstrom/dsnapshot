@@ -146,6 +146,12 @@ can be configured to use an alternative rsync.
 rsync_cmd = "path/to/rsync"
 ```
 
+The command used to calculate the disk usage is by default `du` but can be changed.
+```toml
+[snapshot.example.rsync]
+du_cmd = "path/to/du"
+```
+
 The command use for remote shell execution of snapshots can be configured. It
 has  overlap with `rsync_rsh`. The difference is that `rsh` is used as is while
 `rsync_rsh` configures rsync via `--rsh=<rsync_rsh>`.
