@@ -2,7 +2,7 @@
 
 **dsnapshot** is a filesystem snapshot utility based on **rsync**.
 
-dsnapshot makes it easy keep periodic snapshots of local and remote
+dsnapshot makes it easy to keep periodic snapshots of local and remote
 machines over ssh.
 
 dsnapshot uses hard links to create an illusion of multiple full backups while
@@ -10,7 +10,7 @@ in the background only occupying the space needed for one full plus the
 differences. This greatly reduces the disk space required.
 
 Onces dsnapshot is set up your backups can happen automatically, usually
-trigged via e.g. a cron job. Because **dsnapshot** only keeps a fixed number of
+trigged via e.g. a cron job. Because dsnapshot only keeps a fixed number of
 snapshots, as configured, the amount of disk space used will not continue to
 grow.
 

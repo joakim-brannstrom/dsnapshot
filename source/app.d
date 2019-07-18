@@ -42,24 +42,25 @@ int main(string[] args) {
 
     // dfmt off
     return conf.data.visit!(
-          (Config.Help a) => cmdHelp(conf),
-          (Config.Backup a) {
+      (Config.Help a) => cmdHelp(conf),
+      (Config.Backup a) {
           loadConfig(conf);
           return cmdBackup(conf.global, a, conf.snapshots);
-          },
-          (Config.Remotecmd a) => cmdRemote(a),
+      },
+      (Config.Remotecmd a) => cmdRemote(a),
           (Config.Diskusage a) {
           loadConfig(conf);
           return cmdDiskUsage(conf.snapshots, a);
-          },
-          (Config.Restore a) {
+      },
+      (Config.Restore a) {
           loadConfig(conf);
           return cmdRestore(conf.snapshots, a);
-          },
-          (Config.Verifyconfig a) {
+      },
+      (Config.Verifyconfig a) {
           loadConfig(conf);
+          logger.info("Done");
           return 0;
-          }
+      }
     );
     // dfmt on
 }
@@ -134,15 +135,30 @@ Config parseUserArgs(string[] args) @trusted {
         }
 
         void restoreParse() {
+            import std.datetime : SysTime, UTC, Clock;
+
             Config.Restore data;
             scope (success)
                 conf.data = data;
 
+            string time;
             // dfmt off
             data.helpInfo = std.getopt.getopt(args,
+                "dst", "Where to restore the snapshot", &data.restoreTo,
                 "s|snapshot", "Name of the snapshot to calculate the disk usage for", &data.name.value,
+                "time", "Pick the snapshot that is closest to this time (default: now). Add a trailing Z if UTC", &time
                 );
             // dfmt on
+
+            try {
+                if (time.length == 0)
+                    data.time = Clock.currTime;
+                else
+                    data.time = SysTime.fromISOExtString(time);
+            } catch (Exception e) {
+                logger.error(e.msg);
+                throw new Exception("Example of UTC time: 2019-07-18T10:49:29.5765454Z");
+            }
         }
 
         void verifyconfigParse() {

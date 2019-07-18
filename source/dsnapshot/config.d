@@ -13,6 +13,7 @@ import colorlog;
 public import dsnapshot.types;
 
 struct Config {
+    import std.datetime : SysTime;
     import std.variant : Algebraic, visit;
     static import std.getopt;
 
@@ -20,6 +21,9 @@ struct Config {
     }
 
     struct Backup {
+        /// The name of the snapshot to backup. If none is specified then all are backed up.
+        // TODO: implement
+        Name name;
     }
 
     struct Remotecmd {
@@ -36,8 +40,13 @@ struct Config {
     }
 
     struct Restore {
-        /// Name of the snapshot to calculate the disk usage of.
+        /// The name of the snapshot to restore.
         Name name;
+        /// The time to restore.
+        SysTime time;
+        /// Path to restore the named snapshot to.
+        string restoreTo;
+
         std.getopt.GetoptResult helpInfo;
     }
 

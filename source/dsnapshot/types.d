@@ -148,6 +148,12 @@ struct RsyncAddr {
     string path;
 }
 
+string fixRsyncAddr(const string a) {
+    if (a.length != 0 && a[$ - 1] != '/')
+        return a ~ "/";
+    return a;
+}
+
 string makeRsyncAddr(string addr, string path) {
     import std.format : format;
 

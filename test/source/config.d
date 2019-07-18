@@ -55,8 +55,10 @@ struct TestArea {
         static foreach (a; args_)
             args ~= a;
         auto res = executeDsnapshot(args, sandboxPath);
-        if (res.status != 0)
+        try {
             File(inSandboxPath("command.log"), "w").write(res.output);
+        } catch (Exception e) {
+        }
         return res;
     }
 
@@ -83,7 +85,8 @@ void writeConfigFromTemplate(Args...)(auto ref TestArea ta, string tmplPath, aut
 
 void writeDummyData(ref TestArea ta, string content) {
     const src = ta.inSandboxPath("src");
-    mkdir(src);
+    if (!exists(src))
+        mkdir(src);
     File(buildPath(src, "file.txt"), "w").write(content);
 }
 

@@ -40,6 +40,7 @@ struct Snapshot {
 struct Empty {
 }
 
+// TODO: replace bucket with an alias to the internal sumtype.
 struct Bucket {
     import sumtype;
 
@@ -105,7 +106,7 @@ struct Layout {
 
     Bucket[] buckets;
     /// The time of the bucket which a snapshot should try to match.
-    const(SysTime)[] time;
+    const(SysTime)[] times;
 
     /// Snapshots collected for pass two.
     Snapshot[] waiting;
@@ -121,8 +122,8 @@ struct Layout {
             curr -= a;
             app.put(curr);
         }
-        time = app.data;
-        buckets.length = time.length;
+        times = app.data;
+        buckets.length = times.length;
     }
 
     Nullable!(Snapshot) firstFullBucket() const {
@@ -150,19 +151,33 @@ struct Layout {
         return rval;
     }
 
+    /// Returns: the bucket that best matched the time.
+    Nullable!Snapshot bestFitBucket(SysTime time) {
+        typeof(return) rval;
+
+        const fitIdx = bestFit(time, times);
+        if (!fitIdx.isNull) {
+            buckets[fitIdx.get].value.match!((Empty a) {}, (Snapshot a) {
+                rval = a;
+            });
+        }
+
+        return rval;
+    }
+
     void put(const Snapshot s) {
         if (buckets.length == 0) {
             discarded ~= s;
             return;
         }
 
-        const fitIdx = bestFit(s.time, time);
+        const fitIdx = bestFit(s.time, times);
         if (fitIdx.isNull) {
             waiting ~= s;
             return;
         }
 
-        const bucketTime = time[fitIdx];
+        const bucketTime = times[fitIdx];
         buckets[fitIdx].value = buckets[fitIdx].value.match!((Empty a) => s, (Snapshot a) {
             // Replace the snapshot in the bucket if the new one `s` is a better fit.
             if (fitness(bucketTime, s.time) < fitness(bucketTime, a.time)) {
@@ -193,7 +208,7 @@ struct Layout {
             scope (exit)
                 bucketIdx++;
 
-            const fitIdx = bestFit(time[bucketIdx], waitingTimes);
+            const fitIdx = bestFit(times[bucketIdx], waitingTimes);
             if (fitIdx.isNull) {
                 continue;
             }
@@ -227,7 +242,7 @@ struct Layout {
 
         put(w, "Bucket nr: Best Fit Time - Content\n");
         foreach (a; buckets.enumerate)
-            formattedWrite(w, "%s: %s - %s\n", a.index, time[a.index], a.value);
+            formattedWrite(w, "%s: %s - %s\n", a.index, times[a.index], a.value);
 
         if (waiting.length != 0)
             put(w, "waiting\n");
@@ -282,10 +297,10 @@ unittest {
     layout.waiting.length.shouldEqual(0);
     layout.discarded.length.shouldEqual(addSnapshotsNr - 15);
 
-    (base - layout.time[0]).total!"hours".shouldEqual(4);
-    (base - layout.time[4]).total!"hours".shouldEqual(4 * 5);
-    (base - layout.time[5]).total!"hours".shouldEqual(4 * 5 + 24);
-    (base - layout.time[9]).total!"hours".shouldEqual(4 * 5 + 24 * 5);
-    (base - layout.time[10]).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7);
-    (base - layout.time[14]).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7 * 5);
+    (base - layout.times[0]).total!"hours".shouldEqual(4);
+    (base - layout.times[4]).total!"hours".shouldEqual(4 * 5);
+    (base - layout.times[5]).total!"hours".shouldEqual(4 * 5 + 24);
+    (base - layout.times[9]).total!"hours".shouldEqual(4 * 5 + 24 * 5);
+    (base - layout.times[10]).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7);
+    (base - layout.times[14]).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7 * 5);
 }

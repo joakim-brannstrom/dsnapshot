@@ -17,6 +17,7 @@ import dsnapshot.types;
 import dsnapshot.exception;
 import dsnapshot.layout : Name, Layout;
 import dsnapshot.layout_utils;
+import dsnapshot.console;
 
 version (unittest) {
     import unit_threaded.assertions;
@@ -99,12 +100,6 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
             logger.infof("%-(%s %)", cmd);
             spawnProcess(cmd).wait;
         }
-    }
-
-    static string fixRsyncAddr(const string a) {
-        if (a.length != 0 && a[$ - 1] != '/')
-            return a ~ "/";
-        return a;
     }
 
     static int executeHooks(const string msg, const string[] hooks, const string[string] env) {
@@ -243,11 +238,4 @@ void removeRemoteSnapshots(const RsyncAddr addr, const Layout layout, const Remo
             logger.warning(e.msg);
         }
     }
-}
-
-bool isInteractiveShell() {
-    import core.stdc.stdio;
-    import core.sys.posix.unistd;
-
-    return isatty(STDERR_FILENO) && isatty(STDOUT_FILENO);
 }

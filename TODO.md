@@ -13,6 +13,7 @@ print-config
 restore
 rollback
 sync
-upgrade-config-file
 version
 version-only
+
+option for deleting the oldest backup if it is full.
