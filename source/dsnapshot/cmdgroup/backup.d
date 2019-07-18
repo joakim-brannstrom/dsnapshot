@@ -31,7 +31,7 @@ int cmdBackup(Config.Global global, Config.Backup backup, Snapshot[] snapshots) 
     foreach (s; snapshots.filter!(a => backup.name.value.empty || backup.name.value == a.name)) {
         int snapshotStatus = 1;
         try {
-            snapshot(s);
+            snapshot(s, backup.ignoreRsyncErrorCodes);
             snapshotStatus = 0;
         } catch (SnapshotException e) {
             e.errMsg.match!(a => a.print);
@@ -48,7 +48,7 @@ int cmdBackup(Config.Global global, Config.Backup backup, Snapshot[] snapshots) 
 
 private:
 
-void snapshot(Snapshot snapshot) {
+void snapshot(Snapshot snapshot, const int[] ignoreRsyncErrorCodes) {
     import std.file : exists, mkdirRecurse, rename;
     import std.path : buildPath, setExtension;
     import std.datetime : UTC, SysTime, Clock;
@@ -70,7 +70,8 @@ void snapshot(Snapshot snapshot) {
     snapshot.syncCmd.match!((None a) {
         logger.info("No sync done for ", snapshot.name, " (missing command configuration)");
     }, (RsyncConfig a) {
-        sync(a, layout, flow, snapshot.hooks, snapshot.remoteCmd, newSnapshot);
+        sync(a, layout, flow, snapshot.hooks, snapshot.remoteCmd, newSnapshot,
+            ignoreRsyncErrorCodes);
     });
 
     flow.match!((None a) {}, (FlowLocal a) {
@@ -81,8 +82,9 @@ void snapshot(Snapshot snapshot) {
     });
 }
 
-void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
-        const Hooks hooks, const RemoteCmd remoteCmd, const string newSnapshot) {
+void sync(const RsyncConfig conf, const Layout layout, const Flow flow, const Hooks hooks,
+        const RemoteCmd remoteCmd, const string newSnapshot, const int[] ignoreRsyncErrorCodes) {
+    import std.algorithm : canFind;
     import std.array : empty;
     import std.conv : to;
     import std.file : remove, exists, mkdirRecurse;
@@ -200,7 +202,9 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
         }
     }
 
-    if (syncPid.wait != 0)
+    auto syncPidExit = syncPid.wait;
+    logger.trace("rsync exit code: ", syncPidExit);
+    if (syncPidExit != 0 && !canFind(ignoreRsyncErrorCodes, syncPidExit))
         throw new SnapshotException(SnapshotException.SyncFailed(src, dst).SnapshotError);
 
     if (executeHooks("post_exec", hooks.postExec, hookEnv) != 0)

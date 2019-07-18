@@ -109,6 +109,7 @@ Config parseUserArgs(string[] args) @trusted {
 
             // dfmt off
             data.helpInfo = std.getopt.getopt(args,
+                "ignore-rsync-error-code", "Ignore rsync error code", &data.ignoreRsyncErrorCodes,
                 "s|snapshot", "The name of the snapshot to backup (default: all)", &data.name.value,
                 );
             // dfmt on
