@@ -221,14 +221,8 @@ struct RsyncConfig {
     // -g preserve groups permissions
     // -o preserve owner permission
     // -D preserve devices
-    // --delete delete files from dest if they are removed in src
     // --chmod change permission on transfered files
-    // --partial keep partially transferred files
     // --numeric-ids don't map uid/gid values by user/group name
-    // --delete-excluded also delete excluded files from dest dirs
     // --modify-window set the accuracy for mod-time comparisons
-    string[] args = [
-        "-ahv", "--partial", "--delete", "--numeric-ids", "--delete-excluded",
-        "--modify-window", "1"
-    ];
+    string[] args = ["-ahv", "--numeric-ids", "--modify-window", "1"];
 }
