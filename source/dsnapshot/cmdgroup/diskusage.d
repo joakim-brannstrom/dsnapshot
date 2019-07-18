@@ -18,6 +18,11 @@ int cmdDiskUsage(Snapshot[] snapshots, const Config.Diskusage conf) nothrow {
     import dsnapshot.layout;
     import dsnapshot.layout_utils;
 
+    if (conf.name.value.empty) {
+        logger.error("No snapshot name specified (-s|--snapshot)").collectException;
+        return 1;
+    }
+
     foreach (snapshot; snapshots.filter!(a => a.name == conf.name.value)) {
         const cmdDu = snapshot.syncCmd.match!((None a) => null, (RsyncConfig a) => a.cmdDiskUsage);
         if (cmdDu.empty) {

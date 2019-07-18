@@ -76,3 +76,32 @@ unittest {
         readText(f).shouldEqual("some data");
     }
 }
+
+@("shall calculate the disk usage of a local destination when executing diskusage")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local.toml"), ta.sandboxPath);
+    ta.writeDummyData("0123456789");
+
+    ta.execDs("backup").status.shouldEqual(0);
+    auto res = ta.execDs("diskusage", "-s", "a");
+
+    res.status.shouldEqual(0);
+    ta.sandboxPath.shouldBeIn(res.output);
+    "total".shouldBeIn(res.output);
+}
+
+@("shall calculate the disk usage of a remote destination when executing diskusage")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local_to_remote.toml"),
+            dsnapshotPath, ta.sandboxPath);
+    ta.writeDummyData("0123456789");
+
+    ta.execDs("backup").status.shouldEqual(0);
+    auto res = ta.execDs("diskusage", "-s", "a");
+
+    res.status.shouldEqual(0);
+    ta.sandboxPath.shouldBeIn(res.output);
+    "total".shouldBeIn(res.output);
+}
