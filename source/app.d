@@ -20,6 +20,7 @@ int main(string[] args) {
     import dsnapshot.cmdgroup.backup;
     import dsnapshot.cmdgroup.diskusage;
     import dsnapshot.cmdgroup.remote;
+    import dsnapshot.cmdgroup.restore;
 
     confLogger(VerboseMode.info);
 
@@ -50,6 +51,14 @@ int main(string[] args) {
           (Config.Diskusage a) {
           loadConfig(conf);
           return cmdDiskUsage(conf.snapshots, a);
+          },
+          (Config.Restore a) {
+          loadConfig(conf);
+          return cmdRestore(conf.snapshots, a);
+          },
+          (Config.Verifyconfig a) {
+          loadConfig(conf);
+          return 0;
           }
     );
     // dfmt on
@@ -122,6 +131,22 @@ Config parseUserArgs(string[] args) @trusted {
                 "s|snapshot", "Name of the snapshot to calculate the disk usage for", &data.name.value,
                 );
             // dfmt on
+        }
+
+        void restoreParse() {
+            Config.Restore data;
+            scope (success)
+                conf.data = data;
+
+            // dfmt off
+            data.helpInfo = std.getopt.getopt(args,
+                "s|snapshot", "Name of the snapshot to calculate the disk usage for", &data.name.value,
+                );
+            // dfmt on
+        }
+
+        void verifyconfigParse() {
+            conf.data = Config.Verifyconfig.init;
         }
 
         alias ParseFn = void delegate();

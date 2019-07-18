@@ -67,8 +67,9 @@ dst_addr = "foo.com"
 
 ## Spans
 
-The span configuration is what controls how many and with what intervals
-snapshots are created.
+dsnapshot is aware of how often you want to take snapshots. The span
+configuration is what controls how many and with what intervals snapshots are
+created.
 
 A basic span is a unique identifier (numerical value), number of snapshots and
 the interval.
@@ -78,7 +79,7 @@ span.<id>.interval = "<value> <unit>"
 ```
 
 The supported unites for the interval are `days`, `hours` and `minutes`. These
-can be written in any combination and multiple times.
+can be written in any order, combination and multiple times.
 
 Multiple spans are concatenated together to a total *snapshot layout*. The
 snapshots that are taken are automatically mapped into the specified layout as
@@ -102,7 +103,8 @@ destination for backups before it creates its new one.
 
 ## Advanced config
 
-**dsnapshot** can run a script before and after a snapshot is created.
+dsnapshot can run a script before and after a snapshot is created. The snapshot
+process will stop if any of the scripts fail.
 ```toml
 [snapshot.example]
 pre_exec = ["echo $DSNAPSHOT_SRC $DSNAPSHOT_DST", "echo second script"]
@@ -221,6 +223,37 @@ src = "~/example"
 src_addr = "other_host"
 dst = "~/backup/example"
 ```
+
+## Example 4: Backup a sql dump
+
+In this example dsnapshot will backup the raw dump of a postgresql database by
+executing a script that dumps the database to a file via the `pre_exec` hook.
+
+```toml
+[snapshot.example]
+span.1.nr = 7
+span.1.interval = "1 days"
+pre_exec = ["mkdir -p $DSNAPSHOT_SRC", "pg_dumpall -Upostgres > \"$DSNAPSHOT_SRC/dump.sql\""]
+post_exec = ["rm \"$DSNAPSHOT_SRC/dump.sql\""]
+[snapshot.example.rsync]
+src = "~/my_script_dump"
+dst = "~/backup/my_script_dump"
+```
+
+# Usage
+
+dsnapshot is divided into command groups like git.
+
+## backup
+
+## verifyconfig
+
+This verify the configuration for errors without executing any commands. Run
+with `-v trace` for the most verbose output.
+
+## diskusage
+
+## restore
 
 # Credit
 

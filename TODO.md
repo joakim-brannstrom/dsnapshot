@@ -5,7 +5,6 @@ check-config-version
 configtest
 diff
 delete
-du
 get-latest-snapshot
 help
 history

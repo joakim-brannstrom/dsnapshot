@@ -35,6 +35,15 @@ struct Config {
         std.getopt.GetoptResult helpInfo;
     }
 
+    struct Restore {
+        /// Name of the snapshot to calculate the disk usage of.
+        Name name;
+        std.getopt.GetoptResult helpInfo;
+    }
+
+    struct Verifyconfig {
+    }
+
     struct Global {
         /// Configuration file to read
         Path confFile;
@@ -45,7 +54,7 @@ struct Config {
         string progName;
     }
 
-    alias Type = Algebraic!(Help, Backup, Remotecmd, Diskusage);
+    alias Type = Algebraic!(Help, Backup, Remotecmd, Diskusage, Restore, Verifyconfig);
     Type data;
 
     Global global;
@@ -68,6 +77,9 @@ struct Config {
             defaultGetoptPrinter("remotecmd:", a.helpInfo.options);
         }, (Diskusage a) {
             defaultGetoptPrinter("diskusage:", a.helpInfo.options);
+        }, (Restore a) { defaultGetoptPrinter("restore:", a.helpInfo.options); }, (Verifyconfig a) {
+            writeln("verifyconfig:");
+            writeln("Verify the configuration file without actually executing it");
         });
     }
 }
