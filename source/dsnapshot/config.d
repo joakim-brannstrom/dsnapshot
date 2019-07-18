@@ -22,8 +22,8 @@ struct Config {
 
     struct Backup {
         /// The name of the snapshot to backup. If none is specified then all are backed up.
-        // TODO: implement
         Name name;
+        std.getopt.GetoptResult helpInfo;
     }
 
     struct Remotecmd {
@@ -82,7 +82,9 @@ struct Config {
             writeln("  ", T.stringof.toLower);
         }
 
-        data.visit!((Help a) {}, (Backup a) {}, (Remotecmd a) {
+        data.visit!((Help a) {}, (Backup a) {
+            defaultGetoptPrinter("backup:", a.helpInfo.options);
+        }, (Remotecmd a) {
             defaultGetoptPrinter("remotecmd:", a.helpInfo.options);
         }, (Diskusage a) {
             defaultGetoptPrinter("diskusage:", a.helpInfo.options);

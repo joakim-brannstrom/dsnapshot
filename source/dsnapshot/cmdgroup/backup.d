@@ -24,9 +24,11 @@ version (unittest) {
 }
 
 int cmdBackup(Config.Global global, Config.Backup backup, Snapshot[] snapshots) {
+    import std.algorithm : filter;
+
     int exitStatus;
 
-    foreach (s; snapshots) {
+    foreach (s; snapshots.filter!(a => backup.name.value.empty || backup.name.value == a.name)) {
         int snapshotStatus = 1;
         try {
             snapshot(s);

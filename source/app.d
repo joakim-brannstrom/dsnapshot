@@ -94,10 +94,6 @@ Config parseUserArgs(string[] args) @trusted {
         string confFile;
 
         void globalParse() {
-            Config.Backup data;
-            scope (success)
-                conf.data = data;
-
             // dfmt off
             conf.global.helpInfo = std.getopt.getopt(args, std.getopt.config.passThrough,
                 "v|verbose", format("Set the verbosity (%-(%s, %))", [EnumMembers!(VerboseMode)]), &conf.global.verbosity,
@@ -107,6 +103,15 @@ Config parseUserArgs(string[] args) @trusted {
         }
 
         void backupParse() {
+            Config.Backup data;
+            scope (success)
+                conf.data = data;
+
+            // dfmt off
+            data.helpInfo = std.getopt.getopt(args,
+                "s|snapshot", "The name of the snapshot to backup (default: all)", &data.name.value,
+                );
+            // dfmt on
         }
 
         void remotecmdParse() {

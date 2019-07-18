@@ -17,3 +17,6 @@ version
 version-only
 
 option for deleting the oldest backup if it is full.
+
+diff
+take two snapshots and print the difference between them
