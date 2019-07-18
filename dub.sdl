@@ -17,6 +17,7 @@ configuration "application" {
 configuration "unittest" {
     dependency "unit-threaded" version="~>0.9"
     targetType "executable"
+    targetName "unittest"
     mainSourceFile "build/ut.d"
     preBuildCommands "dub run unit-threaded -c gen_ut_main -- -f build/ut.d"
     excludedSourceFiles "source/app.d"
@@ -25,6 +26,7 @@ configuration "unittest" {
 // redirect testing which is primarily integration testing
 configuration "integration_test" {
     targetType "executable"
+    targetName "integration_test"
 
     excludedSourceFiles "source/*"
     sourceFiles "test/redirect.d"
