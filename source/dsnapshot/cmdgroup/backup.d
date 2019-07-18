@@ -54,7 +54,7 @@ void snapshot(Snapshot snapshot) {
     const newSnapshot = () {
         auto c = Clock.currTime;
         c.timezone = UTC();
-        return c.toISOExtString;
+        return c.toISOExtString ~ snapshotInProgressSuffix;
     }();
 
     // Extract an updated layout of the snapshots at the destination.
@@ -67,12 +67,15 @@ void snapshot(Snapshot snapshot) {
 
     snapshot.syncCmd.match!((None a) {
         logger.info("No sync done for ", snapshot.name, " (missing command configuration)");
-    }, (RsyncConfig a) => sync(a, layout, flow, snapshot.hooks, snapshot.remoteCmd, newSnapshot));
+    }, (RsyncConfig a) {
+        sync(a, layout, flow, snapshot.hooks, snapshot.remoteCmd, newSnapshot);
+    });
 
     flow.match!((None a) {}, (FlowLocal a) {
-        removeLocalSnapshots(a.dst, layout);
-    }, (FlowRsyncToLocal a) { removeLocalSnapshots(a.dst, layout); }, (FlowLocalToRsync a) {
-        removeRemoteSnapshots(a.dst, layout, snapshot.remoteCmd);
+        finishLocalSnapshot(a.dst, layout, newSnapshot);
+    }, (FlowRsyncToLocal a) { finishLocalSnapshot(a.dst, layout, newSnapshot); },
+            (FlowLocalToRsync a) {
+        finishRemoteSnapshot(a.dst, layout, snapshot.remoteCmd, newSnapshot);
     });
 }
 
@@ -202,9 +205,12 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow,
         throw new SnapshotException(SnapshotException.PostExecFailed.init.SnapshotError);
 }
 
-void removeLocalSnapshots(const LocalAddr local, const Layout layout) {
+void finishLocalSnapshot(const LocalAddr local, const Layout layout, const string newSnapshot) {
     import std.algorithm : map;
     import std.file : rmdirRecurse, exists, isDir;
+    import dsnapshot.cmdgroup.remote : publishSnapshot;
+
+    publishSnapshot((local.value.Path ~ newSnapshot).toString);
 
     foreach (const name; layout.discarded.map!(a => a.name)) {
         const old = (local.value.Path ~ name.value).toString;
@@ -216,14 +222,23 @@ void removeLocalSnapshots(const LocalAddr local, const Layout layout) {
                 logger.warning(e.msg);
             }
         }
-
     }
 }
 
-void removeRemoteSnapshots(const RsyncAddr addr, const Layout layout, const RemoteCmd cmd_) {
+void finishRemoteSnapshot(const RsyncAddr addr, const Layout layout,
+        const RemoteCmd cmd_, const string newSnapshot) {
     import std.algorithm : map;
     import std.path : buildPath;
     import std.process : spawnProcess, wait;
+
+    { //TODO: create a helper function that execute commands
+        auto cmd = cmd_.match!((const SshRemoteCmd a) {
+            return a.toCmd(RemoteSubCmd.publishSnapshot, addr.addr,
+                buildPath(addr.path, newSnapshot));
+        });
+        logger.infof("%-(%s %)", cmd);
+        spawnProcess(cmd).wait;
+    }
 
     foreach (const name; layout.discarded.map!(a => a.name)) {
         auto cmd = cmd_.match!((const SshRemoteCmd a) {

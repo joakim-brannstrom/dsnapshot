@@ -54,6 +54,7 @@ struct TestArea {
         string[] args;
         static foreach (a; args_)
             args ~= a;
+        args ~= ["-v", "trace"];
         auto res = executeDsnapshot(args, sandboxPath);
         try {
             File(inSandboxPath("command.log"), "w").write(res.output);

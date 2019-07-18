@@ -7,6 +7,8 @@ module dsnapshot.types;
 
 public import sumtype;
 
+immutable snapshotInProgressSuffix = "-in-progress";
+
 /// Tag a string as a path and make it absolute+normalized.
 struct Path {
     import std.path : absolutePath, buildNormalizedPath, buildPath;
@@ -107,6 +109,8 @@ enum RemoteSubCmd {
     lsDirs,
     mkdirRecurse,
     rmdirRecurse,
+    /// Change the status of a snapshot from "in progress" to available.
+    publishSnapshot,
 }
 
 /// Info of how to execute dsnapshot on the remote host.

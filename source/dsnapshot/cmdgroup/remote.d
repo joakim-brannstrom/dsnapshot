@@ -13,7 +13,7 @@ import dsnapshot.types;
 int cmdRemote(const Config.Remotecmd conf) nothrow {
     import std.algorithm : map, filter;
     import std.exception : collectException;
-    import std.file : dirEntries, SpanMode, exists, mkdirRecurse, rmdirRecurse;
+    import std.file : dirEntries, SpanMode, exists, mkdirRecurse, rmdirRecurse, rename;
     import std.path : baseName;
     import std.stdio : writeln;
 
@@ -61,8 +61,44 @@ int cmdRemote(const Config.Remotecmd conf) nothrow {
             logger.warning(e.msg).collectException;
         }
         break;
+    case RemoteSubCmd.publishSnapshot:
+        if (!exists(conf.path)) {
+            logger.infof("Snapshot %s do not exist", conf.path).collectException;
+            return 1;
+        }
+
+        publishSnapshot(conf.path);
+        break;
     }
     return 0;
 }
 
-private:
+/// Publish a snapshot that has the status "in-progress".
+int publishSnapshot(const string snapshot) nothrow {
+    import std.algorithm : map, filter;
+    import std.exception : collectException;
+    import std.file : dirEntries, SpanMode, exists, mkdirRecurse, rmdirRecurse, rename;
+    import std.path : baseName;
+    import std.stdio : writeln;
+
+    const dst = () {
+        if (snapshot.length < snapshotInProgressSuffix.length)
+            return null;
+        return snapshot[0 .. $ - snapshotInProgressSuffix.length];
+    }();
+
+    if (exists(dst)) {
+        logger.errorf("Destination %s already exist thus unable to publish snapshot %s",
+                dst, snapshot).collectException;
+        return 1;
+    }
+
+    try {
+        rename(snapshot, dst);
+    } catch (Exception e) {
+        logger.error(e.msg).collectException;
+        return 1;
+    }
+
+    return 0;
+}
