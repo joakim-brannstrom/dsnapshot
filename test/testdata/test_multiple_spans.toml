@@ -1,10 +1,10 @@
 [snapshot.a]
 span.1.nr = 5
-span.1.interval = "10 minutes"
+span.1.interval = "3 msecs"
 span.2.nr = 3
-span.2.interval = "1 days"
+span.2.interval = "1 msecs"
 span.3.nr = 5
-span.3.interval = "7 days"
+span.3.interval = "7 msecs"
 [snapshot.a.rsync]
 src = "src"
 dst = "dst"

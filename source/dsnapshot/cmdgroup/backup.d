@@ -53,19 +53,31 @@ void snapshot(Snapshot snapshot, const int[] ignoreRsyncErrorCodes) {
     import std.path : buildPath, setExtension;
     import std.datetime : UTC, SysTime, Clock;
 
+    // Extract an updated layout of the snapshots at the destination.
+    auto layout = snapshot.syncCmd.match!((None a) => snapshot.layout,
+            (RsyncConfig a) => fillLayout(snapshot.layout, a.flow, snapshot.remoteCmd));
+
+    // this ensure that dsnapshot is only executed when there are actual work
+    // to do. If multiple snapshots are taken close to each other in time then
+    // it means that the "last" one of them is actually the only one that is
+    // kept because it is closest to the bucket.
+    if (!layout.isFirstBucketEmpty) {
+        logger.infof("Nothing to do because a snapshot where recently taken");
+        auto first = layout.snapshotTimeInBucket(0);
+        if (!first.isNull)
+            logger.info(first.get);
+        return;
+    }
+
+    auto flow = snapshot.syncCmd.match!((None a) => None.init.Flow, (RsyncConfig a) => a.flow);
+
+    logger.trace("Updated layout with information from destination: ", layout);
+
     const newSnapshot = () {
         auto c = Clock.currTime;
         c.timezone = UTC();
         return c.toISOExtString ~ snapshotInProgressSuffix;
     }();
-
-    // Extract an updated layout of the snapshots at the destination.
-    auto layout = snapshot.syncCmd.match!((None a) => snapshot.layout,
-            (RsyncConfig a) => fillLayout(snapshot.layout, a.flow, snapshot.remoteCmd));
-
-    auto flow = snapshot.syncCmd.match!((None a) => None.init.Flow, (RsyncConfig a) => a.flow);
-
-    logger.trace("Updated layout with information from destination: ", layout);
 
     snapshot.syncCmd.match!((None a) {
         logger.info("No sync done for ", snapshot.name, " (missing command configuration)");

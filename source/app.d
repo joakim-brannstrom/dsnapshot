@@ -329,22 +329,18 @@ auto parseLayout(ref TOMLValue tv) @trusted {
         Duration d;
         foreach (const p; parts.chunks(2)) {
             const nr = p[0].to!long;
-            switch (p[1]) {
-            case "minutes":
-                d += nr.dur!"minutes";
-                break;
-            case "hours":
-                d += nr.dur!"hours";
-                break;
-            case "days":
-                d += nr.dur!"days";
-                break;
-            case "weeks":
-                d += nr.dur!"weeks";
-                break;
-            default:
-                logger.warningf("Invalid unit '%s'. Valid are minutes, hours, days and weeks.",
-                        p[1]);
+            bool validUnit;
+            immutable AllUnites = [
+                "msecs", "seconds", "minutes", "hours", "days", "weeks"
+            ];
+            static foreach (Unit; AllUnites) {
+                if (p[1] == Unit) {
+                    d += nr.dur!Unit;
+                    validUnit = true;
+                }
+            }
+            if (!validUnit) {
+                logger.warningf("Invalid unit '%s'. Valid are %-(%s, %).", p[1], AllUnites);
                 return rval;
             }
         }

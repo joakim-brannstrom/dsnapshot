@@ -65,7 +65,7 @@ unittest {
     ta.writeDummyData("some data");
 
     foreach (a; 0 .. 16) {
-        Thread.sleep(10.dur!"msecs");
+        Thread.sleep(20.dur!"msecs");
         ta.execDs("backup").status.shouldEqual(0);
     }
 

@@ -108,6 +108,9 @@ struct Layout {
     /// The time of the bucket which a snapshot should try to match.
     const(SysTime)[] times;
 
+    /// Based on the first pass of the algoritm.
+    bool isFirstBucketEmpty;
+
     /// Snapshots collected for pass two.
     Snapshot[] waiting;
 
@@ -194,12 +197,18 @@ struct Layout {
         import std.algorithm : remove;
         import std.array : array;
 
-        if (buckets.length == 0 || waiting.length == 0) {
+        if (buckets.length == 0) {
+            return;
+        }
+        if (waiting.length == 0) {
+            isFirstBucketEmpty = true;
             return;
         }
 
         scope (exit)
             waiting = null;
+
+        isFirstBucketEmpty = buckets[0].value.match!((Empty a) => true, (Snapshot a) => false);
 
         auto waitingTimes = waiting.map!(a => a.time).array;
         size_t bucketIdx;
