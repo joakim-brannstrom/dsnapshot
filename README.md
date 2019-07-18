@@ -57,6 +57,9 @@ src = "path/to/src"
 dst = "path/to/where/to/backup/src"
 ```
 
+Note that if the paths are relative they will be relative to where dsnapshot is
+executed for a local address.
+
 If the source or destination isn't on the local computer then an address can be
 specified in the rsync section:
 ```toml
@@ -246,6 +249,8 @@ dsnapshot is divided into command groups like git.
 
 ## backup
 
+Executes all snapshots in the configuration file.
+
 ## verifyconfig
 
 This verify the configuration for errors without executing any commands. Run
@@ -253,7 +258,26 @@ with `-v trace` for the most verbose output.
 
 ## diskusage
 
+Calculates the actual disk usage of the specified snapshot.
+
 ## restore
+
+Restores the snapshot that closest matches the specified date or if none is
+given the latest.
+
+# Automation
+
+When you have a configuration file that you are happy with you may want to
+automate the execution of the `backup` command.
+
+One way of automating is to use the tried and true crontab. Lets say you have
+configured dsnapshots first span to a 4 hours interval and the second is 1 day.
+```sh
+* */4 * * * dsnapshot backup -c my_config.toml
+```
+
+Done! The snapshots will automatically spill over from the 4 hours span to the
+1 day span over time.
 
 # Credit
 
