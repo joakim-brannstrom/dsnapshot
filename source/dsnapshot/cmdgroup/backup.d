@@ -57,18 +57,6 @@ void snapshot(Snapshot snapshot, const int[] ignoreRsyncErrorCodes) {
     auto layout = snapshot.syncCmd.match!((None a) => snapshot.layout,
             (RsyncConfig a) => fillLayout(snapshot.layout, a.flow, snapshot.remoteCmd));
 
-    // this ensure that dsnapshot is only executed when there are actual work
-    // to do. If multiple snapshots are taken close to each other in time then
-    // it means that the "last" one of them is actually the only one that is
-    // kept because it is closest to the bucket.
-    if (!layout.isFirstBucketEmpty) {
-        logger.infof("Nothing to do because a snapshot where recently taken");
-        auto first = layout.snapshotTimeInBucket(0);
-        if (!first.isNull)
-            logger.info(first.get);
-        return;
-    }
-
     auto flow = snapshot.syncCmd.match!((None a) => None.init.Flow, (RsyncConfig a) => a.flow);
 
     logger.trace("Updated layout with information from destination: ", layout);
@@ -82,8 +70,22 @@ void snapshot(Snapshot snapshot, const int[] ignoreRsyncErrorCodes) {
     snapshot.syncCmd.match!((None a) {
         logger.info("No sync done for ", snapshot.name, " (missing command configuration)");
     }, (RsyncConfig a) {
-        sync(a, layout, flow, snapshot.hooks, snapshot.remoteCmd, newSnapshot,
-            ignoreRsyncErrorCodes);
+        // this ensure that dsnapshot is only executed when there are actual work
+        // to do. If multiple snapshots are taken close to each other in time then
+        // it means that the "last" one of them is actually the only one that is
+        // kept because it is closest to the bucket.
+        if (layout.isFirstBucketEmpty) {
+            sync(a, layout, flow, snapshot.hooks, snapshot.remoteCmd,
+                newSnapshot, ignoreRsyncErrorCodes);
+        } else {
+            logger.infof("No new snapshot taken because one where recently taken");
+            auto first = layout.snapshotTimeInBucket(0);
+            if (!first.isNull) {
+                logger.infof("Latest snapshot taken at %s. Next snapshot will be taken in %s",
+                    first.get, first.get - layout.times[0].begin);
+            }
+            return;
+        }
     });
 
     flow.match!((None a) {}, (FlowLocal a) {

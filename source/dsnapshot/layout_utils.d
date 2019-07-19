@@ -98,7 +98,7 @@ Name[] snapshotNamesFromSsh(const RemoteCmd cmd_, string addr, string path) {
 @("shall scan the directory for all snapshots")
 unittest {
     import std.conv : to;
-    import std.datetime : SysTime, UTC, Duration, Clock, dur;
+    import std.datetime : SysTime, UTC, Duration, Clock, dur, Interval;
     import std.file;
     import std.path;
     import std.range : enumerate;
@@ -110,34 +110,33 @@ unittest {
         rmdirRecurse(tmpDir);
     mkdir(tmpDir);
 
-    auto curr = Clock.currTime;
-    curr.timezone = UTC();
+    const offset = 5.dur!"minutes";
+    const base = Clock.currTime.toUTC;
+    auto curr = cast() base;
 
     foreach (const i; 0 .. 15) {
         mkdir(buildPath(tmpDir, curr.toISOExtString));
-        curr -= 1.dur!"hours";
+        curr -= 4.dur!"hours";
     }
-    foreach (const i; 0 .. 15) {
-        curr -= 5.dur!"hours";
+    foreach (const i; 0 .. 4) {
+        curr -= 8.dur!"hours";
         mkdir(buildPath(tmpDir, curr.toISOExtString));
     }
 
     auto conf = LayoutConfig([Span(5, 4.dur!"hours"), Span(5, 1.dur!"days")]);
-    const base = Clock.currTime;
     auto layout = Layout(base, conf);
     layout = fillLayout(layout, FlowLocal(LocalAddr(tmpDir), LocalAddr(tmpDir))
             .Flow, RemoteCmd(SshRemoteCmd.init));
 
     layout.waiting.length.shouldEqual(0);
-    layout.discarded.length.shouldEqual(20);
+    layout.discarded.length.shouldEqual(9);
 
-    (base - layout.snapshotTimeInBucket(0).get).total!"hours".shouldEqual(4);
-    (base - layout.snapshotTimeInBucket(4).get).total!"hours".shouldEqual(4 * 5);
-    (base - layout.snapshotTimeInBucket(5).get).total!"hours".shouldEqual(4 * 5 + 24 + 1);
-    (base - layout.snapshotTimeInBucket(6).get).total!"hours".shouldEqual(4 * 5 + 24 * 2 + 2);
-    (base - layout.snapshotTimeInBucket(7).get).total!"hours".shouldEqual(4 * 5 + 24 * 3 - 2);
-
+    (base - layout.snapshotTimeInBucket(0).get).total!"minutes".shouldEqual(0);
+    (base - layout.snapshotTimeInBucket(4).get).total!"hours".shouldEqual(3 * 5 + 1);
+    (base - layout.snapshotTimeInBucket(5).get).total!"hours".shouldEqual(4 * 5);
+    (base - layout.snapshotTimeInBucket(6).get).total!"hours".shouldEqual(4 * 5 + 24 * 1);
+    (base - layout.snapshotTimeInBucket(7).get).total!"hours".shouldEqual(4 * 5 + 24 * 2);
     /// these buckets are filled by the second  pass
-    (base - layout.snapshotTimeInBucket(8).get).total!"hours".shouldEqual(4 * 5 + 24 * 4 - 31);
-    (base - layout.snapshotTimeInBucket(9).get).total!"hours".shouldEqual(4 * 5 + 24 * 5 - 60);
+    (base - layout.snapshotTimeInBucket(8).get).total!"hours".shouldEqual(4 * 5 + 24 * 3);
+    (base - layout.snapshotTimeInBucket(9).get).total!"hours".shouldEqual(4 * 5 + 24 * 3 - 8);
 }

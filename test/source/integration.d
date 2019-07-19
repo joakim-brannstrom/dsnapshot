@@ -70,7 +70,10 @@ unittest {
     }
 
     const found = ta.findFile("dst", "file.txt");
-    found.length.shouldEqual(14);
+    // the first bucket is left empty because the sleep above ensure that we
+    // run the command backup so many times that the snapshots just gets old
+    // and fall out.
+    found.length.shouldEqual(13);
     foreach (f; found) {
         f.dirName.dirName.baseName.shouldEqual("dst");
         readText(f).shouldEqual("some data");

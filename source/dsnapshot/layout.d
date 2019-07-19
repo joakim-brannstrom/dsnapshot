@@ -15,9 +15,9 @@ buckets time and the snapshots actual time.
 module dsnapshot.layout;
 
 import logger = std.experimental.logger;
-import std.algorithm : joiner, map;
-import std.array : appender;
-import std.datetime : SysTime, Duration, dur, Clock;
+import std.algorithm : joiner, map, filter;
+import std.array : appender, empty;
+import std.datetime : SysTime, Duration, dur, Clock, Interval;
 import std.range : repeat, enumerate;
 import std.typecons : Nullable;
 
@@ -55,8 +55,46 @@ Duration fitness(const SysTime a, const SysTime b) {
     return diff;
 }
 
+/// Returns: the index of the interval that enclose `time`.
+Nullable!size_t bestFitInterval(const SysTime time, const Interval!SysTime[] candidates) {
+    typeof(return) rval;
+    // can't use contains because we want the intervals to be inverted, open
+    // beginning and closed end. this is to put times that are on the edge in
+    // the "closest to now" interval.
+    foreach (a; candidates.enumerate.filter!(a => (time > a.value.begin && time <= a.value.end))) {
+        rval = a.index;
+        break;
+    }
+
+    return rval;
+}
+
+@("shall find the interval that contains the time")
+unittest {
+    import std.array : array;
+    import std.range : iota;
+
+    const base = Clock.currTime;
+    const offset = 5.dur!"minutes";
+
+    auto candidates = iota(0, 10).map!(a => Interval!SysTime(base - (a + 1)
+            .dur!"hours", base - a.dur!"hours")).array;
+
+    // |---|---|---|---|---|---|
+    // 0   1   2   3   4   5   6
+    bestFitInterval(base - offset, candidates).get.should == 0;
+    bestFitInterval(base - 4.dur!"hours" - offset, candidates).get.should == 4;
+    bestFitInterval(Clock.currTime - 5.dur!"hours" - offset, candidates).get.should == 5;
+
+    // test edge case where the times are exactly on the borders
+    bestFitInterval(base, candidates).get.should == 0;
+    bestFitInterval(base - 1.dur!"hours", candidates).get.should == 1;
+    bestFitInterval(base - 4.dur!"hours", candidates).get.should == 4;
+    bestFitInterval(base - 5.dur!"hours", candidates).get.should == 5;
+}
+
 /// Returns: the index of the candidate that best fit the time.
-Nullable!size_t bestFit(const SysTime time, const SysTime[] candidates) {
+Nullable!size_t bestFitTime(const SysTime time, const SysTime[] candidates) {
     import std.typecons : tuple;
 
     typeof(return) rval;
@@ -76,10 +114,16 @@ unittest {
     import std.array : array;
     import std.range : iota;
 
-    auto candidates = iota(0, 10).map!(a => Clock.currTime + a.dur!"hours").array;
+    const base = Clock.currTime;
+    const offset = 5.dur!"minutes";
 
-    const bucket = Clock.currTime + 4.dur!"hours";
-    bestFit(bucket, candidates).get.should == 4;
+    auto candidates = iota(0, 10).map!(a => base - a.dur!"hours").array;
+
+    // |---|---|---|---|---|---|
+    // 0   1   2   3   4   5   6
+    bestFitTime(base - offset, candidates).get.should == 0;
+    bestFitTime(base - 4.dur!"hours" - offset, candidates).get.should == 4;
+    bestFitTime(Clock.currTime - 5.dur!"hours" - offset, candidates).get.should == 5;
 }
 
 /**
@@ -92,9 +136,12 @@ unittest {
  * to it.
  *
  * It operates on two passes.
- * During the first pass snapshots are added to the buckets following a best
- * fit algorithm.  Snapshots are never discarded at this stage. If a snapshot
- * do not fit in a bucket or is replaced it is moved to a waiting list.
+ * The first pass is basically a histogram. It finds the bucket interval that
+ * wrap the snapshot. It then checks to see if the candidate is newer than the
+ * one currently in the bucket. If so it replaces it. This mean that each
+ * bucket contains the latest snapshot that fit it. Snapshots are never
+ * discarded at this stage. If a snapshot do not fit in a bucket or is replaced
+ * it is moved to a waiting list.
  *
  * During the second pass the waiting snapshots are mapped back to the buckets
  * via the same best fit algorithm.  The difference here is that the buckets
@@ -106,7 +153,7 @@ struct Layout {
 
     Bucket[] buckets;
     /// The time of the bucket which a snapshot should try to match.
-    const(SysTime)[] times;
+    const(Interval!SysTime)[] times;
 
     /// Based on the first pass of the algoritm.
     bool isFirstBucketEmpty;
@@ -118,12 +165,19 @@ struct Layout {
     Snapshot[] discarded;
 
     this(const SysTime start, const LayoutConfig conf) {
-        // configure the buckets
-        auto app = appender!(SysTime[])();
-        SysTime curr = start;
-        foreach (a; conf.spans.map!(a => repeat(a.space, a.nr)).joiner) {
-            curr -= a;
-            app.put(curr);
+        auto begin = start.toUTC;
+        auto end = start.toUTC;
+        auto app = appender!(Interval!SysTime[])();
+        foreach (const a; conf.spans.map!(a => repeat(a.space, a.nr)).joiner) {
+            try {
+                end = begin;
+                begin -= a;
+                app.put(Interval!SysTime(begin, end));
+            } catch (Exception e) {
+                logger.warning(e.msg);
+                logger.infof("Tried to create a bucket with time span %s -> %s from span interval %s",
+                        begin, end, a);
+            }
         }
         times = app.data;
         buckets.length = times.length;
@@ -154,11 +208,11 @@ struct Layout {
         return rval;
     }
 
-    /// Returns: the bucket that best matched the time.
-    Nullable!Snapshot bestFitBucket(SysTime time) {
+    /// Returns: the bucket which interval enclose `time`.
+    Nullable!Snapshot bestFitBucket(const SysTime time) {
         typeof(return) rval;
 
-        const fitIdx = bestFit(time, times);
+        const fitIdx = bestFitInterval(time, times);
         if (!fitIdx.isNull) {
             buckets[fitIdx.get].value.match!((Empty a) {}, (Snapshot a) {
                 rval = a;
@@ -174,7 +228,7 @@ struct Layout {
             return;
         }
 
-        const fitIdx = bestFit(s.time, times);
+        const fitIdx = bestFitInterval(s.time, times);
         if (fitIdx.isNull) {
             waiting ~= s;
             return;
@@ -183,7 +237,12 @@ struct Layout {
         const bucketTime = times[fitIdx];
         buckets[fitIdx].value = buckets[fitIdx].value.match!((Empty a) => s, (Snapshot a) {
             // Replace the snapshot in the bucket if the new one `s` is a better fit.
-            if (fitness(bucketTime, s.time) < fitness(bucketTime, a.time)) {
+            // Using `.end` on the assumption that the latest snapshot for
+            // each bucket is the most interesting. This also mean that when a
+            // snapshot trickle over to a new bucket it will most probably
+            // replace the old one right away because the old one is closer to
+            // the `.begin` than `.end`.
+            if (fitness(bucketTime.end, s.time) < fitness(bucketTime.end, a.time)) {
                 waiting ~= a;
                 return s;
             }
@@ -200,24 +259,26 @@ struct Layout {
         if (buckets.length == 0) {
             return;
         }
-        if (waiting.length == 0) {
-            isFirstBucketEmpty = true;
+
+        isFirstBucketEmpty = buckets[0].value.match!((Empty a) => true, (Snapshot a) => false);
+
+        if (waiting.length == 0 || (isFirstBucketEmpty && buckets.length == 1)) {
             return;
         }
 
         scope (exit)
             waiting = null;
 
-        isFirstBucketEmpty = buckets[0].value.match!((Empty a) => true, (Snapshot a) => false);
-
         auto waitingTimes = waiting.map!(a => a.time).array;
-        size_t bucketIdx;
+        // do not put anything in the first bucket if it is empty. It is to be
+        // filled in that case.
+        size_t bucketIdx = isFirstBucketEmpty ? 1 : 0;
 
         while (bucketIdx < buckets.length) {
             scope (exit)
                 bucketIdx++;
 
-            const fitIdx = bestFit(times[bucketIdx], waitingTimes);
+            const fitIdx = bestFitTime(times[bucketIdx].end, waitingTimes);
             if (fitIdx.isNull) {
                 continue;
             }
@@ -306,10 +367,10 @@ unittest {
     layout.waiting.length.shouldEqual(0);
     layout.discarded.length.shouldEqual(addSnapshotsNr - 15);
 
-    (base - layout.times[0]).total!"hours".shouldEqual(4);
-    (base - layout.times[4]).total!"hours".shouldEqual(4 * 5);
-    (base - layout.times[5]).total!"hours".shouldEqual(4 * 5 + 24);
-    (base - layout.times[9]).total!"hours".shouldEqual(4 * 5 + 24 * 5);
-    (base - layout.times[10]).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7);
-    (base - layout.times[14]).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7 * 5);
+    (base - layout.times[0].begin).total!"hours".shouldEqual(4);
+    (base - layout.times[4].begin).total!"hours".shouldEqual(4 * 5);
+    (base - layout.times[5].begin).total!"hours".shouldEqual(4 * 5 + 24);
+    (base - layout.times[9].begin).total!"hours".shouldEqual(4 * 5 + 24 * 5);
+    (base - layout.times[10].begin).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7);
+    (base - layout.times[14].begin).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7 * 5);
 }

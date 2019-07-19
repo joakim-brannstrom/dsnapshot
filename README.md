@@ -72,7 +72,7 @@ dst_addr = "foo.com"
 
 dsnapshot is aware of how often you want to take snapshots. The span
 configuration is what controls how many and with what intervals snapshots are
-created.
+created and kept on disk.
 
 A basic span is a unique identifier (numerical value), number of snapshots and
 the interval.
@@ -81,12 +81,13 @@ span.<id>.nr = <numerical value>
 span.<id>.interval = "<value> <unit>"
 ```
 
-The supported unites for the interval are `weeks`, `days`, `hours`, `minutes`, `seoncds` and `msecs`. These
-can be written in any order, combination and multiple times.
+The supported unites for the interval are `weeks`, `days`, `hours`, `minutes`,
+`seoncds` and `msecs`. These can be written in any order, combination and
+multiple times.
 
-Multiple spans are concatenated together to a total *snapshot layout*. The
-snapshots that are taken are automatically mapped into the specified layout as
-time progress. Lets say the following configuration:
+Multiple spans are concatenated together to a *snapshot layout*. The snapshots
+that are taken are automatically mapped into the specified layout as time
+progress. Lets say the following configuration:
 ```toml
 span.1.nr = 2
 span.1.interval = "12 hours"
@@ -114,7 +115,7 @@ span.2.nr = 3
 span.2.interval = "1 weeks"
 ```
 
-It keeps the backups for up to a month.
+It keeps the backups for up to a month with less and less frequency.
 
 ## Advanced config
 
