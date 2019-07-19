@@ -29,8 +29,6 @@ auto fillLayout(Layout layout_, Flow flow, const RemoteCmd cmd) {
     import dsnapshot.layout : LSnapshot = Snapshot;
 
     auto rval = layout_;
-    scope (exit)
-        rval.finalize;
 
     const names = flow.match!((None a) => null,
             (FlowRsyncToLocal a) => snapshotNamesFromDir(a.dst.value.Path),
@@ -128,8 +126,7 @@ unittest {
     layout = fillLayout(layout, FlowLocal(LocalAddr(tmpDir), LocalAddr(tmpDir))
             .Flow, RemoteCmd(SshRemoteCmd.init));
 
-    layout.waiting.length.shouldEqual(0);
-    layout.discarded.length.shouldEqual(9);
+    layout.discarded.length.shouldEqual(10);
 
     (base - layout.snapshotTimeInBucket(0).get).total!"minutes".shouldEqual(0);
     (base - layout.snapshotTimeInBucket(4).get).total!"hours".shouldEqual(3 * 5 + 1);
@@ -138,5 +135,5 @@ unittest {
     (base - layout.snapshotTimeInBucket(7).get).total!"hours".shouldEqual(4 * 5 + 24 * 2);
     /// these buckets are filled by the second  pass
     (base - layout.snapshotTimeInBucket(8).get).total!"hours".shouldEqual(4 * 5 + 24 * 3);
-    (base - layout.snapshotTimeInBucket(9).get).total!"hours".shouldEqual(4 * 5 + 24 * 3 - 8);
+    layout.snapshotTimeInBucket(9).isNull.shouldBeTrue;
 }

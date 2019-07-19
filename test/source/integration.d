@@ -58,22 +58,24 @@ unittest {
     readText(found[0]).shouldEqual("some data");
 }
 
-@("shall keep nr+1 snapshots from a multi-span configuration when executing backup")
+@("shall keep only those snapshots that are best fit for the buckets from a multi-span configuration when executing backup")
 unittest {
     auto ta = makeTestArea;
     ta.writeConfigFromTemplate(inTestData("test_multiple_spans.toml"), ta.sandboxPath);
     ta.writeDummyData("some data");
 
-    foreach (a; 0 .. 16) {
+    foreach (a; 0 .. 10) {
         Thread.sleep(20.dur!"msecs");
         ta.execDs("backup").status.shouldEqual(0);
     }
+    Thread.sleep(200.dur!"msecs");
+    ta.execDs("backup").status.shouldEqual(0);
 
     const found = ta.findFile("dst", "file.txt");
     // the first bucket is left empty because the sleep above ensure that we
     // run the command backup so many times that the snapshots just gets old
     // and fall out.
-    found.length.shouldEqual(13);
+    found.length.shouldBeGreaterThan(1);
     foreach (f; found) {
         f.dirName.dirName.baseName.shouldEqual("dst");
         readText(f).shouldEqual("some data");

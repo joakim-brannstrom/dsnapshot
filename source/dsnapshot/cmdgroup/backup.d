@@ -31,7 +31,7 @@ int cmdBackup(Config.Global global, Config.Backup backup, Snapshot[] snapshots) 
     foreach (s; snapshots.filter!(a => backup.name.value.empty || backup.name.value == a.name)) {
         int snapshotStatus = 1;
         try {
-            snapshot(s, backup.ignoreRsyncErrorCodes);
+            snapshot(s, backup);
             snapshotStatus = 0;
         } catch (SnapshotException e) {
             e.errMsg.match!(a => a.print);
@@ -48,10 +48,10 @@ int cmdBackup(Config.Global global, Config.Backup backup, Snapshot[] snapshots) 
 
 private:
 
-void snapshot(Snapshot snapshot, const int[] ignoreRsyncErrorCodes) {
+void snapshot(Snapshot snapshot, const Config.Backup conf) {
     import std.file : exists, mkdirRecurse, rename;
     import std.path : buildPath, setExtension;
-    import std.datetime : UTC, SysTime, Clock;
+    import std.datetime : Clock;
 
     // Extract an updated layout of the snapshots at the destination.
     auto layout = snapshot.syncCmd.match!((None a) => snapshot.layout,
@@ -62,9 +62,10 @@ void snapshot(Snapshot snapshot, const int[] ignoreRsyncErrorCodes) {
     logger.trace("Updated layout with information from destination: ", layout);
 
     const newSnapshot = () {
-        auto c = Clock.currTime;
-        c.timezone = UTC();
-        return c.toISOExtString ~ snapshotInProgressSuffix;
+        if (conf.resume && !layout.resume.isNull) {
+            return layout.resume.get.name.value;
+        }
+        return Clock.currTime.toUTC.toISOExtString ~ snapshotInProgressSuffix;
     }();
 
     snapshot.syncCmd.match!((None a) {
@@ -76,7 +77,7 @@ void snapshot(Snapshot snapshot, const int[] ignoreRsyncErrorCodes) {
         // kept because it is closest to the bucket.
         if (layout.isFirstBucketEmpty) {
             sync(a, layout, flow, snapshot.hooks, snapshot.remoteCmd,
-                newSnapshot, ignoreRsyncErrorCodes);
+                newSnapshot, conf.ignoreRsyncErrorCodes);
         } else {
             logger.infof("No new snapshot taken because one where recently taken");
             auto first = layout.snapshotTimeInBucket(0);

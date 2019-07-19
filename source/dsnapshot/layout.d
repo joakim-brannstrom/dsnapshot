@@ -142,11 +142,6 @@ unittest {
  * bucket contains the latest snapshot that fit it. Snapshots are never
  * discarded at this stage. If a snapshot do not fit in a bucket or is replaced
  * it is moved to a waiting list.
- *
- * During the second pass the waiting snapshots are mapped back to the buckets
- * via the same best fit algorithm.  The difference here is that the buckets
- * "time" is matched against all waiting snapshots. This is the reverse of the
- * first pass.
  * */
 struct Layout {
     import sumtype;
@@ -154,12 +149,6 @@ struct Layout {
     Bucket[] buckets;
     /// The time of the bucket which a snapshot should try to match.
     const(Interval!SysTime)[] times;
-
-    /// Based on the first pass of the algoritm.
-    bool isFirstBucketEmpty;
-
-    /// Snapshots collected for pass two.
-    Snapshot[] waiting;
 
     /// Snapshots that has been discarded because they do are not the best fit for any bucket.
     Snapshot[] discarded;
@@ -183,7 +172,13 @@ struct Layout {
         buckets.length = times.length;
     }
 
-    Nullable!(Snapshot) firstFullBucket() const {
+    bool isFirstBucketEmpty() {
+        if (buckets.length == 0)
+            return false;
+        return buckets[0].value.match!((Empty a) => true, (Snapshot a) => false);
+    }
+
+    Nullable!Snapshot firstFullBucket() const {
         typeof(return) rval;
         foreach (a; buckets) {
             bool done;
@@ -191,6 +186,22 @@ struct Layout {
             if (done)
                 break;
         }
+
+        return rval;
+    }
+
+    /// Returns: a snapshot that can be used to resume.
+    Nullable!Snapshot resume() @safe pure nothrow const @nogc {
+        import std.algorithm : endsWith;
+        import dsnapshot.types : snapshotInProgressSuffix;
+
+        typeof(return) rval;
+
+        foreach (s; discarded.filter!(a => a.name.value.endsWith(snapshotInProgressSuffix))) {
+            rval = s;
+            break;
+        }
+
         return rval;
     }
 
@@ -230,7 +241,7 @@ struct Layout {
 
         const fitIdx = bestFitInterval(s.time, times);
         if (fitIdx.isNull) {
-            waiting ~= s;
+            discarded ~= s;
             return;
         }
 
@@ -243,55 +254,12 @@ struct Layout {
             // replace the old one right away because the old one is closer to
             // the `.begin` than `.end`.
             if (fitness(bucketTime.end, s.time) < fitness(bucketTime.end, a.time)) {
-                waiting ~= a;
+                discarded ~= a;
                 return s;
             }
-            waiting ~= s;
+            discarded ~= s;
             return a;
         });
-    }
-
-    /// Pass two. Moving waiting to either buckets or discarded.
-    void finalize() {
-        import std.algorithm : remove;
-        import std.array : array;
-
-        if (buckets.length == 0) {
-            return;
-        }
-
-        isFirstBucketEmpty = buckets[0].value.match!((Empty a) => true, (Snapshot a) => false);
-
-        if (waiting.length == 0 || (isFirstBucketEmpty && buckets.length == 1)) {
-            return;
-        }
-
-        scope (exit)
-            waiting = null;
-
-        auto waitingTimes = waiting.map!(a => a.time).array;
-        // do not put anything in the first bucket if it is empty. It is to be
-        // filled in that case.
-        size_t bucketIdx = isFirstBucketEmpty ? 1 : 0;
-
-        while (bucketIdx < buckets.length) {
-            scope (exit)
-                bucketIdx++;
-
-            const fitIdx = bestFitTime(times[bucketIdx].end, waitingTimes);
-            if (fitIdx.isNull) {
-                continue;
-            }
-
-            buckets[bucketIdx].value = buckets[bucketIdx].value.match!((Empty a) {
-                auto s = waiting[fitIdx];
-                waiting = waiting.remove(fitIdx.get);
-                waitingTimes = waitingTimes.remove(fitIdx.get);
-                return s;
-            }, (Snapshot a) => a);
-        }
-
-        discarded ~= waiting;
     }
 
     import std.range : isOutputRange;
@@ -313,11 +281,6 @@ struct Layout {
         put(w, "Bucket nr: Best Fit Time - Content\n");
         foreach (a; buckets.enumerate)
             formattedWrite(w, "%s: %s - %s\n", a.index, times[a.index], a.value);
-
-        if (waiting.length != 0)
-            put(w, "waiting\n");
-        foreach (a; waiting.enumerate)
-            formattedWrite(w, "%s: %s\n", a.index, a.value);
 
         if (discarded.length != 0)
             put(w, "Discarded\n");
@@ -360,11 +323,6 @@ unittest {
     }
 
     layout.buckets.length.should == 15;
-    layout.waiting.length.shouldEqual(addSnapshotsNr - 15);
-
-    layout.finalize;
-
-    layout.waiting.length.shouldEqual(0);
     layout.discarded.length.shouldEqual(addSnapshotsNr - 15);
 
     (base - layout.times[0].begin).total!"hours".shouldEqual(4);

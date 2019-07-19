@@ -23,6 +23,8 @@ struct Config {
     struct Backup {
         /// The name of the snapshot to backup. If none is specified then all are backed up.
         Name name;
+        /// If the user wants to resume an interrupted backup.
+        bool resume;
         ///
         int[] ignoreRsyncErrorCodes;
         std.getopt.GetoptResult helpInfo;

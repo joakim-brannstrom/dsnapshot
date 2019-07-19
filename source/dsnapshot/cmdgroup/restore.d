@@ -6,7 +6,8 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 module dsnapshot.cmdgroup.restore;
 
 import logger = std.experimental.logger;
-import std.array : empty;
+import std.algorithm : map, filter, canFind;
+import std.array : empty, array;
 import std.exception : collectException;
 
 import dsnapshot.config : Config;
@@ -15,9 +16,7 @@ import dsnapshot.layout_utils;
 import dsnapshot.types;
 
 int cmdRestore(Snapshot[] snapshots, const Config.Restore conf) nothrow {
-    import std.algorithm : map, filter;
     import dsnapshot.layout;
-    import dsnapshot.layout_utils;
 
     if (conf.name.value.empty) {
         logger.error("No snapshot name specified (-s|--snapshot)").collectException;
@@ -76,16 +75,15 @@ int restore(const RsyncConfig conf, Snapshot snapshot, const Config.Restore rcon
         string[] opts = [conf.cmdRsync];
         opts ~= conf.args.dup;
 
+        if (!rconf.deleteFromTo) {
+            opts = opts.filter!(a => !conf.deleteArgs.canFind(a)).array;
+        }
+
         if (!conf.rsh.empty)
             opts ~= ["-e", conf.rsh];
 
         if (isInteractiveShell)
             opts ~= conf.progress;
-
-        if (rconf.deleteFromTo) {
-            // --delete delete files from dest if they are removed in src
-            opts ~= ["--delete"];
-        }
 
         foreach (a; conf.exclude)
             opts ~= ["--exclude", a];
