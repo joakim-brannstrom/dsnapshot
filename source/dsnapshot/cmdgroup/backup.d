@@ -137,7 +137,7 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow, const Ho
 
     string[] buildOpts() {
         string[] opts = [conf.cmdRsync];
-        opts ~= conf.args.dup;
+        opts ~= conf.backupArgs.dup;
 
         const latest = layout.firstFullBucket;
 

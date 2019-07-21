@@ -429,8 +429,11 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
         case "diskusage_cmd":
             rval.cmdDiskUsage = data.array.map!(a => a.str).array;
             break;
-        case "rsync_args":
-            rval.args = data.array.map!(a => a.str).array;
+        case "rsync_backup_args":
+            rval.backupArgs = data.array.map!(a => a.str).array;
+            break;
+        case "rsync_restore_args":
+            rval.restoreArgs = data.array.map!(a => a.str).array;
             break;
         case "progress":
             rval.progress = data.array.map!(a => a.str).array;

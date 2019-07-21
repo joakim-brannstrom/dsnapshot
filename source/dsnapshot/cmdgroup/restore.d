@@ -73,11 +73,7 @@ int restore(const RsyncConfig conf, Snapshot snapshot, const Config.Restore rcon
     // it can be deduplicated. Note, similare not the same.
     string[] buildOpts() {
         string[] opts = [conf.cmdRsync];
-        opts ~= conf.args.dup;
-
-        if (!rconf.deleteFromTo) {
-            opts = opts.filter!(a => !conf.deleteArgs.canFind(a)).array;
-        }
+        opts ~= conf.restoreArgs.dup;
 
         if (!conf.rsh.empty)
             opts ~= ["-e", conf.rsh];

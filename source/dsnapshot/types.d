@@ -227,13 +227,10 @@ struct RsyncConfig {
     // --chmod change permission on transfered files
     // --numeric-ids don't map uid/gid values by user/group name
     // --modify-window set the accuracy for mod-time comparisons
-    //
-    // NOTE: these flags are re-used by restore. Be mindful of --delete and
-    // --delete-excluded. Those are removed by restore.
-    string[] args = [
+    string[] backupArgs = [
         "-ahv", "--numeric-ids", "--modify-window", "1", "--delete",
         "--delete-excluded", "--partial"
     ];
 
-    string[] deleteArgs = ["--delete", "--delete-excluded"];
+    string[] restoreArgs = ["-ahv", "--numeric-ids", "--modify-window", "1"];
 }

@@ -154,7 +154,8 @@ exclude = ["path/to/exclude"]
 The default arguments for rsync can be changed.
 ```toml
 [snapshot.example.rsync]
-rsync_args = ["-ahv", "--numeric-ids", "--modify-window", "1"]
+rsync_backup_args = ["-ahv", "--numeric-ids", "--modify-window", "1", "--delete", "--delete-excluded", "--partial"]
+rsync_restore_args = ["-ahv", "--numeric-ids", "--modify-window", "1"]
 ```
 
 If the default rsync from the path can't be used. In that case **dsnapshot**
