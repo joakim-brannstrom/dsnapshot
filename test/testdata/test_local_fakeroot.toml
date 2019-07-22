@@ -1,0 +1,7 @@
+[snapshot.a]
+span.1.nr = 5
+span.1.interval = "5 minutes"
+[snapshot.a.rsync]
+src = "src"
+dst = "dst"
+fakeroot = true

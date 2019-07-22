@@ -25,7 +25,8 @@ unittest {
 
     const found = ta.findFile("dst", "file.txt");
     found.length.shouldEqual(1);
-    found[0].dirName.dirName.baseName.shouldEqual("dst");
+    found[0].dirName.baseName.shouldEqual("data");
+    found[0].dirName.dirName.dirName.baseName.shouldEqual("dst");
     readText(found[0]).shouldEqual("some data");
 }
 
@@ -39,7 +40,8 @@ unittest {
 
     const found = ta.findFile("dst", "file.txt");
     found.length.shouldEqual(1);
-    found[0].dirName.dirName.baseName.shouldEqual("dst");
+    found[0].dirName.baseName.shouldEqual("data");
+    found[0].dirName.dirName.dirName.baseName.shouldEqual("dst");
     readText(found[0]).shouldEqual("some data");
 }
 
@@ -54,7 +56,8 @@ unittest {
 
     const found = ta.findFile("dst", "file.txt");
     found.length.shouldEqual(1);
-    found[0].dirName.dirName.baseName.shouldEqual("dst");
+    found[0].dirName.baseName.shouldEqual("data");
+    found[0].dirName.dirName.dirName.baseName.shouldEqual("dst");
     readText(found[0]).shouldEqual("some data");
 }
 
@@ -77,7 +80,8 @@ unittest {
     // and fall out.
     found.length.shouldBeGreaterThan(1);
     foreach (f; found) {
-        f.dirName.dirName.baseName.shouldEqual("dst");
+        f.dirName.baseName.shouldEqual("data");
+        f.dirName.dirName.dirName.baseName.shouldEqual("dst");
         readText(f).shouldEqual("some data");
     }
 }
@@ -137,6 +141,7 @@ unittest {
 
     const found = ta.findFile("restore", "file.txt");
     found.length.shouldEqual(1);
+    found[0].dirName.baseName.shouldNotEqual("data");
     // the one closest to the configured snapshot time is "best". The time is
     // now-5min so the first snapshot should be restored.
     readText(found[0]).shouldEqual("0123456789");
@@ -160,4 +165,29 @@ unittest {
     // the one closest to the configured snapshot time is "best". The time is
     // now-5min so the first snapshot should be restored.
     readText(found[0]).shouldEqual("0123456789");
+}
+
+@("shall save the env via fakeroot for a local to local when executing backup")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local_fakeroot.toml"), ta.sandboxPath);
+    ta.writeDummyData("0123456789");
+
+    ta.execDs("backup").status.shouldEqual(0);
+
+    const found = ta.findFile("dst", "fakeroot.env");
+    found.length.shouldEqual(1);
+}
+
+@("shall save the env via fakeroot for a local to remote when executing backup")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local_to_remote_fakeroot.toml"),
+            dsnapshotPath, ta.sandboxPath);
+    ta.writeDummyData("0123456789");
+
+    ta.execDs("backup").status.shouldEqual(0);
+
+    const found = ta.findFile("dst", "fakeroot.env");
+    found.length.shouldEqual(1);
 }

@@ -85,12 +85,14 @@ int restore(const RsyncConfig conf, Snapshot snapshot, const Config.Restore rcon
             opts ~= ["--exclude", a];
 
         flow.match!((None a) {}, (FlowLocal a) {
-            src = fixRsyncAddr((a.dst.value.Path ~ bestFitSnapshot.name.value).toString);
+            src = fixRsyncAddr((a.dst.value.Path ~ bestFitSnapshot.name.value ~ snapshotData)
+                .toString);
         }, (FlowRsyncToLocal a) {
-            src = fixRsyncAddr((a.dst.value.Path ~ bestFitSnapshot.name.value).toString);
+            src = fixRsyncAddr((a.dst.value.Path ~ bestFitSnapshot.name.value ~ snapshotData)
+                .toString);
         }, (FlowLocalToRsync a) {
             src = makeRsyncAddr(a.dst.addr, fixRsyncAddr(buildPath(a.dst.path,
-                bestFitSnapshot.name.value)));
+                bestFitSnapshot.name.value, snapshotData)));
         });
 
         opts ~= src;

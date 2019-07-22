@@ -99,10 +99,17 @@ void prepare() {
     synchronized {
         if (g_isPrepared)
             return;
-        g_isPrepared = true;
 
         // prepare by cleaning up
         if (exists(tmpDir))
             rmdirRecurse(tmpDir);
+
+        import core.thread : Thread;
+        import core.time : dur;
+
+        // slow filesystem. let it finish.
+        Thread.sleep(100.dur!"msecs");
+
+        g_isPrepared = true;
     }
 }

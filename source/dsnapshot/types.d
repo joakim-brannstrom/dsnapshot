@@ -7,7 +7,14 @@ module dsnapshot.types;
 
 public import sumtype;
 
+/// Snapshots that are in the progress of being transfered have this suffix.
 immutable snapshotInProgressSuffix = "-in-progress";
+/// The actual rsync'ed data is in this directory.
+immutable snapshotData = "data";
+/// name of the fakeroot environment.
+immutable snapshotFakerootEnv = "fakeroot.env";
+/// User id that is replaced by the actual path to the file to save the env in
+immutable snapshotFakerootSaveEnvId = "$$SAVE_ENV_FILE$$";
 
 /// Tag a string as a path and make it absolute+normalized.
 struct Path {
@@ -43,7 +50,7 @@ struct Path {
         value_ = rhs.value_;
     }
 
-    Path opBinary(string op)(string rhs) @safe {
+    Path opBinary(string op)(string rhs) @safe const {
         static if (op == "~") {
             return Path(buildPath(value_, rhs));
         } else
@@ -195,13 +202,20 @@ struct RsyncConfig {
     /// If fakeroot should be used for this snapshot
     bool useFakeRoot = false;
 
+    /// Arguments to use with fakeroot
+    string[] rsyncFakerootArgs = ["--rsync-path"];
+    string[] fakerootArgs = [
+        "fakeroot", "-u", "-i", snapshotFakerootSaveEnvId, "-s",
+        snapshotFakerootSaveEnvId
+    ];
+
     /// Low process and io priority
     bool lowPrio = true;
 
     /// Patterns to exclude from rsync.
     string[] exclude;
 
-    /// Rsync command to use
+    /// Rsync command to use.
     string cmdRsync = "rsync";
 
     /// disk usage command to use.

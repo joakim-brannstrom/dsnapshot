@@ -411,6 +411,12 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
         case "fakeroot":
             rval.useFakeRoot = data == true;
             break;
+        case "rsync_fakeroot_args":
+            rval.rsyncFakerootArgs = data.array.map!(a => a.str).array;
+            break;
+        case "fakeroot_args":
+            rval.fakerootArgs = data.array.map!(a => a.str).array;
+            break;
         case "link_dest":
             rval.useLinkDest = data == true;
             break;
