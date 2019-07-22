@@ -145,10 +145,12 @@ Normally dsnapshot is prohibited from crossing the filesystem. This can be turne
 cross_fs = false
 ```
 
-Dsnapshot can be configured to exclude directories.
+Dsnapshot can be configured to exclude directories. The path is relative to
+src. See `man rsync` for more details.
 ```toml
 [snapshot.example.rsync]
 exclude = ["path/to/exclude"]
+# which is the actual path: src/path/to/exclude
 ```
 
 The default arguments for rsync can be changed.
@@ -158,8 +160,8 @@ rsync_backup_args = ["-ahv", "--numeric-ids", "--modify-window", "1", "--delete"
 rsync_restore_args = ["-ahv", "--numeric-ids", "--modify-window", "1"]
 ```
 
-If the default rsync from the path can't be used. In that case **dsnapshot**
-can be configured to use an alternative rsync.
+Lets say that `rsync` from `$PATH` can't be used. In that case dsnapshot can be
+configured to use an alternative `rsync`.
 ```toml
 [snapshot.example.rsync]
 rsync_cmd = "path/to/rsync"
@@ -171,8 +173,8 @@ The command used to calculate the disk usage is by default `du` but can be chang
 diskusage_cmd = ["path/to/du", "-hcs"]
 ```
 
-The command use for remote shell execution of snapshots can be configured. It
-has  overlap with `rsync_rsh`. The difference is that `rsh` is used as is while
+The command used for remote shell execution of snapshots can be configured. It
+has overlap with `rsync_rsh`. The difference is that `rsh` is used as is while
 `rsync_rsh` configures rsync via `--rsh=<rsync_rsh>`.
 ```toml
 [snapshot.example]
@@ -181,7 +183,8 @@ rsh = ["ssh", "-p1234"]
 rsync_rsh = "ssh -p1234"
 ```
 
-The location of where to find `dsnapshot` on the remote host can be configured:
+The location of where to find `dsnapshot` on the remote host can be configured.
+This is needed when doing a local to remote snapshot:
 ```toml
 [snapshot.example]
 dsnapshot = "/path/to/dsnapshot"
@@ -198,8 +201,8 @@ progress = []
 
 The user and group for files can be saved via the excellent `fakeroot` program.
 This make it possible to both e.g. backup files owned by root on one host to
-another where one do not have root access. By not needing root in this way on
-the backup server improves security.
+another where one do not have root access. By not needing root on the remote
+server the security is improved and simplified.
 ```toml
 [snapshot.example.rsync]
 fakeroot = true
@@ -269,6 +272,34 @@ post_exec = ["rm \"$DSNAPSHOT_SRC/dump.sql\""]
 [snapshot.example.rsync]
 src = "~/my_script_dump"
 dst = "~/backup/my_script_dump"
+```
+
+## Example 5: Backup `/` to a remote host
+
+In this example dsnapshot will backup the most relevant files from `/` in order
+to ease a restore of the server. To improve the security dsnapshot uses
+fakeroot to avoid the need for being root on the remote server when backing up
+files owned by root.
+
+The example expects the user `example_backup` to exist on the remote server and
+have a ssh key registered that is used by the local root when transfering and
+running commands on `dst_addr`.
+
+The example uses the default layout which mean the backups are kept for one
+month.
+
+```toml
+[snapshot.luggage_root]
+dsnapshot = "/home/example_backup/dsnapshot"
+rsh = ["ssh", "-l", "example_backup"]
+[snapshot.luggage_root.rsync]
+exclude = ["dev/", "home/", "media/", "mnt/", "opt/", "proc/", "run/", "sys/",
+"tmp/", "var/", "sbin/", "lost+found/", "usr/", "bin/", "lib/", "lib64/",
+"snap/", "lib32/", "libx32/"]
+src = "/"
+dst = "/home/example_backup/root"
+dst_addr = "example_backup@lipwig"
+fakeroot = true
 ```
 
 # Usage
