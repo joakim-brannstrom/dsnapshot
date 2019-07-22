@@ -82,7 +82,7 @@ span.<id>.interval = "<value> <unit>"
 ```
 
 The supported unites for the interval are `weeks`, `days`, `hours`, `minutes`,
-`seoncds` and `msecs`. These can be written in any order, combination and
+`seconds` and `msecs`. These can be written in any order, combination and
 multiple times.
 
 Multiple spans are concatenated together to a *snapshot layout*. The snapshots
