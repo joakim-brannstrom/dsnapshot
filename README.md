@@ -187,13 +187,27 @@ The location of where to find `dsnapshot` on the remote host can be configured:
 dsnapshot = "/path/to/dsnapshot"
 ```
 
-A progress bar, via rsync, is displayed when dsnapshot is executed in interactive
-mode. This can be changed or turned off.
+A progress bar, via rsync, is displayed when dsnapshot is executed in
+interactive mode. This can be changed or turned off.
 ```toml
 [snapshot.example.rsync]
 progress = ["--info=progress1"]
 # or turn off
 progress = []
+```
+
+The user and group for files can be saved via the excellent `fakeroot` program.
+This make it possible to both e.g. backup files owned by root on one host to
+another where one do not have root access. By not needing root in this way on
+the backup server improves security.
+```toml
+[snapshot.example.rsync]
+fakeroot = true
+# additionally the arguments for fakeroot can be changed
+fakeroot_args = ["fakeroot", "-u", "$$SAVE_ENV_FILE$$", "-i", "$$SAVE_ENV_FILE$$"]
+# the rsync command that is executed is the one from rsync_cmd
+# this is only used when backing up to another host
+rsync_fakeroot_args = ["--rsync-path"]
 ```
 
 ## Example 1: Backups kept over a year
