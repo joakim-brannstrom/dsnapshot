@@ -205,8 +205,7 @@ struct RsyncConfig {
     /// Arguments to use with fakeroot
     string[] rsyncFakerootArgs = ["--rsync-path"];
     string[] fakerootArgs = [
-        "fakeroot", "-u", "-i", snapshotFakerootSaveEnvId, "-s",
-        snapshotFakerootSaveEnvId
+        "fakeroot-ng", "-d", "-p", snapshotFakerootSaveEnvId
     ];
 
     /// Low process and io priority
