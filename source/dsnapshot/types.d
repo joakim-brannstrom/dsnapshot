@@ -118,6 +118,8 @@ enum RemoteSubCmd {
     rmdirRecurse,
     /// Change the status of a snapshot from "in progress" to available.
     publishSnapshot,
+    /// Transfer the remote fakeroot.env to a local representation.
+    fakerootStats,
 }
 
 /// Info of how to execute dsnapshot on the remote host.
@@ -205,7 +207,8 @@ struct RsyncConfig {
     /// Arguments to use with fakeroot
     string[] rsyncFakerootArgs = ["--rsync-path"];
     string[] fakerootArgs = [
-        "fakeroot-ng", "-d", "-p", snapshotFakerootSaveEnvId
+        "fakeroot", "-u", "-i", snapshotFakerootSaveEnvId, "-s",
+        snapshotFakerootSaveEnvId
     ];
 
     /// Low process and io priority

@@ -199,17 +199,17 @@ progress = ["--info=progress1"]
 progress = []
 ```
 
-The user and group for files can be saved via the excellent `fakeroot-ng`
-program.  This make it possible to both e.g. backup files owned by root on one
-host to another where one do not have root access. By not needing root on the
-remote server the security is improved and simplified.
+The user and group for files can be saved via the excellent `fakeroot` program.
+This make it possible to both e.g. backup files owned by root on one host to
+another where one do not have root access. By not needing root on the remote
+server the security is improved and simplified.
 ```toml
 [snapshot.example.rsync]
 fakeroot = true
 # additionally the arguments for fakeroot can be changed
-fakeroot_args = ["fakeroot-ng", "-d", "-p", "$$SAVE_ENV_FILE$$"]
-# or change to using fakeroot
 fakeroot_args = ["fakeroot", "-u", "-s" "$$SAVE_ENV_FILE$$", "-i", "$$SAVE_ENV_FILE$$"]
+# or change to using fakeroot-ng
+fakeroot_args = ["fakeroot-ng", "-d", "-p", "$$SAVE_ENV_FILE$$"]
 # the rsync command that is executed is the one from rsync_cmd
 # this is only used when backing up to another host
 rsync_fakeroot_args = ["--rsync-path"]
