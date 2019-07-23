@@ -118,6 +118,8 @@ enum RemoteSubCmd {
     rmdirRecurse,
     /// Change the status of a snapshot from "in progress" to available.
     publishSnapshot,
+    /// Transfer the remote fakeroot.env to a local representation.
+    fakerootStats,
 }
 
 /// Info of how to execute dsnapshot on the remote host.

@@ -69,6 +69,24 @@ int cmdRemote(const Config.Remotecmd conf) nothrow {
 
         publishSnapshot(conf.path);
         break;
+    case RemoteSubCmd.fakerootStats:
+        import std.stdio : File;
+        import std.path : buildPath;
+        import dsnapshot.stats;
+
+        const fakerootEnv = buildPath(conf.path, snapshotFakerootEnv);
+        if (!exists(fakerootEnv)) {
+            logger.infof("Unable to find or open %s", conf.path).collectException;
+            return 1;
+        }
+        try {
+            auto fkdb = fromFakerootEnv(fakerootEnv.Path);
+            writeln; // make sure we start at a new line
+            foreach (const ps; fromFakeroot(fkdb, conf.path, buildPath(conf.path, snapshotData)))
+                writeln(ps.toString);
+        } catch (Exception e) {
+            logger.warning(e.msg).collectException;
+        }
     }
     return 0;
 }

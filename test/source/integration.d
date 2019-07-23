@@ -191,3 +191,48 @@ unittest {
     const found = ta.findFile("dst", "fakeroot.env");
     found.length.shouldEqual(1);
 }
+
+@("shall restore from a local snapshot using the fakeroot env when executing restore")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local_fakeroot.toml"), ta.sandboxPath);
+    ta.writeDummyData("0123456789");
+
+    {
+        ta.execDs("backup").status.shouldEqual(0);
+        const found = ta.findFile("dst", "fakeroot.env");
+        const fenv = readText(found[0]);
+        File(found[0], "w").write(fenv.replace("mode=100664", "mode=100600"));
+    }
+
+    ta.execDs("restore", "-s", "a", "--dst", ta.inSandboxPath("restore")).status.shouldEqual(0);
+
+    {
+        const found = ta.findFile("restore", "file.txt");
+        found.length.shouldEqual(1);
+        found[0].getAttributes.shouldEqual(octal!100600);
+    }
+}
+
+@("shall restore from a remote snapshot using the fakeroot env when executing restore")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local_to_remote_fakeroot.toml"),
+            dsnapshotPath, ta.sandboxPath);
+    ta.writeDummyData("0123456789");
+
+    {
+        ta.execDs("backup").status.shouldEqual(0);
+        const found = ta.findFile("dst", "fakeroot.env");
+        const fenv = readText(found[0]);
+        File(found[0], "w").write(fenv.replace("mode=100664", "mode=100600"));
+    }
+
+    ta.execDs("restore", "-s", "a", "--dst", ta.inSandboxPath("restore")).status.shouldEqual(0);
+
+    {
+        const found = ta.findFile("restore", "file.txt");
+        found.length.shouldEqual(1);
+        found[0].getAttributes.shouldEqual(octal!100600);
+    }
+}
