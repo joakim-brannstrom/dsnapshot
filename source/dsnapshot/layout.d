@@ -45,6 +45,23 @@ struct Bucket {
     import sumtype;
 
     SumType!(Empty, Snapshot) value;
+
+    import std.range : isOutputRange;
+
+    string toString() @safe const {
+        import std.array : appender;
+
+        auto buf = appender!string;
+        toString(buf);
+        return buf.data;
+    }
+
+    void toString(Writer)(ref Writer w) const if (isOutputRange!(Writer, char)) {
+        import std.format : formattedWrite;
+        import std.range : enumerate, put;
+
+        formattedWrite(w, "%s", cast() value);
+    }
 }
 
 /// It is always positive. The closer to zero the better fit.
@@ -275,19 +292,22 @@ struct Layout {
     void toString(Writer)(ref Writer w) const if (isOutputRange!(Writer, char)) {
         import std.format : formattedWrite;
         import std.range : enumerate, put;
+        import std.ascii : newline;
 
-        put(w, "Layout(");
-
-        put(w, "Bucket nr: Best Fit Time - Content\n");
-        foreach (a; buckets.enumerate)
-            formattedWrite(w, "%s: %s - %s\n", a.index, times[a.index], a.value);
+        put(w, "Bucket Nr: Interval\n");
+        foreach (a; buckets.enumerate) {
+            formattedWrite(w, "%9s: %s - %s\n%11s", a.index,
+                    times[a.index].begin, times[a.index].end, "");
+            a.value.value.match!((Empty a) { put(w, "empty"); }, (Snapshot a) {
+                formattedWrite(w, "%s", a.time);
+            });
+            put(w, newline);
+        }
 
         if (discarded.length != 0)
             put(w, "Discarded\n");
         foreach (a; discarded.enumerate)
             formattedWrite(w, "%s: %s\n", a.index, a.value);
-
-        put(w, ")");
     }
 }
 

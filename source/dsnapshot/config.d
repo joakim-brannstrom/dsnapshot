@@ -43,6 +43,19 @@ struct Config {
         std.getopt.GetoptResult helpInfo;
     }
 
+    struct Admin {
+        /// Name of the snapshot to administrate.
+        Name[] names;
+
+        enum Cmd {
+            list,
+        }
+
+        Cmd cmd;
+
+        std.getopt.GetoptResult helpInfo;
+    }
+
     struct Restore {
         /// The name of the snapshot to restore.
         Name name;
@@ -69,7 +82,7 @@ struct Config {
         string progName;
     }
 
-    alias Type = Algebraic!(Help, Backup, Remotecmd, Diskusage, Restore, Verifyconfig);
+    alias Type = Algebraic!(Help, Backup, Remotecmd, Diskusage, Restore, Verifyconfig, Admin);
     Type data;
 
     Global global;
@@ -97,6 +110,6 @@ struct Config {
         }, (Restore a) { defaultGetoptPrinter("restore:", a.helpInfo.options); }, (Verifyconfig a) {
             writeln("verifyconfig:");
             writeln("Verify the configuration file without actually executing it");
-        });
+        }, (Admin a) { defaultGetoptPrinter("admin:", a.helpInfo.options); },);
     }
 }

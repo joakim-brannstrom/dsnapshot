@@ -6,17 +6,18 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 module app;
 
 import logger = std.experimental.logger;
-import std.algorithm : remove;
+import std.algorithm : remove, map;
+import std.array : array;
 import std.exception : collectException;
-import std.path;
+import std.path : baseName, expandTilde;
 import std.stdio : writeln;
-import std.string;
 
 import colorlog;
 
 import dsnapshot.config;
 
 int main(string[] args) {
+    import dsnapshot.cmdgroup.admin;
     import dsnapshot.cmdgroup.backup;
     import dsnapshot.cmdgroup.diskusage;
     import dsnapshot.cmdgroup.remote;
@@ -60,6 +61,10 @@ int main(string[] args) {
           loadConfig(conf);
           logger.info("Done");
           return 0;
+      },
+      (Config.Admin a) {
+          loadConfig(conf);
+          return cmdAdmin(conf.snapshots, a);
       }
     );
     // dfmt on
@@ -171,6 +176,22 @@ Config parseUserArgs(string[] args) @trusted {
 
         void verifyconfigParse() {
             conf.data = Config.Verifyconfig.init;
+        }
+
+        void adminParse() {
+            Config.Admin data;
+            scope (success)
+                conf.data = data;
+
+            string[] names;
+            // dfmt off
+            data.helpInfo = std.getopt.getopt(args,
+                "s|snapshot", "Snapshot name (default: all)", &names,
+                "cmd", format!"What to do. Available: %-(%s, %) (default: list)"([EnumMembers!(Config.Admin.Cmd)]), &data.cmd,
+                );
+            // dfmt on
+
+            data.names = names.map!(a => Name(a)).array;
         }
 
         alias ParseFn = void delegate();
