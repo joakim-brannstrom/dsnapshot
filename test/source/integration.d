@@ -93,7 +93,7 @@ unittest {
     ta.writeDummyData("0123456789");
 
     ta.execDs("backup").status.shouldEqual(0);
-    auto res = ta.execDs("diskusage", "-s", "a");
+    auto res = ta.execDs("admin", "--cmd", "diskusage", "-s", "a");
 
     res.status.shouldEqual(0);
     ta.sandboxPath.shouldBeIn(res.output);
@@ -108,7 +108,7 @@ unittest {
     ta.writeDummyData("0123456789");
 
     ta.execDs("backup").status.shouldEqual(0);
-    auto res = ta.execDs("diskusage", "-s", "a");
+    auto res = ta.execDs("admin", "--cmd", "diskusage", "-s", "a");
 
     res.status.shouldEqual(0);
     ta.sandboxPath.shouldBeIn(res.output);

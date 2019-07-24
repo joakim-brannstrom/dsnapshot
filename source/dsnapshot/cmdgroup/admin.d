@@ -6,9 +6,11 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 module dsnapshot.cmdgroup.admin;
 
 import logger = std.experimental.logger;
-import std.array : empty, array;
 import std.algorithm;
+import std.array : empty, array;
 import std.exception : collectException;
+import std.process : spawnProcess, wait;
+import std.stdio : writeln;
 
 import dsnapshot.config : Config;
 import dsnapshot.exception;
@@ -35,6 +37,10 @@ int cmdAdmin(Snapshot[] snapshots, const Config.Admin conf) nothrow {
             final switch (conf.cmd) with (Config.Admin) {
             case Cmd.list:
                 cmdList(snapshot, flow);
+                break;
+            case Cmd.diskusage:
+                cmdDiskUsage(snapshot, flow);
+                break;
             }
         } catch (SnapshotException e) {
             e.errMsg.match!(a => a.print).collectException;
@@ -45,13 +51,12 @@ int cmdAdmin(Snapshot[] snapshots, const Config.Admin conf) nothrow {
         }
     }
 
-    return 1;
+    return 0;
 }
 
 private:
 
 void cmdList(Snapshot snapshot, Flow flow) {
-    import std.stdio : writeln, stdout;
     import dsnapshot.layout_utils;
 
     auto layout = snapshot.syncCmd.match!((None a) => snapshot.layout,
@@ -59,4 +64,38 @@ void cmdList(Snapshot snapshot, Flow flow) {
 
     writeln("Snapshot config: ", snapshot.name);
     writeln(layout);
+}
+
+void cmdDiskUsage(Snapshot snapshot, Flow flow) {
+    import dsnapshot.layout;
+    import dsnapshot.layout_utils;
+
+    writeln("Snapshot config: ", snapshot.name);
+
+    const cmdDu = snapshot.syncCmd.match!((None a) => null, (RsyncConfig a) => a.cmdDiskUsage);
+    if (cmdDu.empty) {
+        logger.errorf("cmd_du is not set for snapshot %s", snapshot.name).collectException;
+        return;
+    }
+
+    // dfmt off
+    flow.match!((None a) => 1,
+                       (FlowRsyncToLocal a) => localDiskUsage(cmdDu, a.dst.value.Path),
+                       (FlowLocal a) => localDiskUsage(cmdDu, a.dst.value.Path),
+                       (FlowLocalToRsync a) => remoteDiskUsage(a.dst, snapshot.remoteCmd, cmdDu)
+                       );
+    // dfmt on
+}
+
+int localDiskUsage(const string[] cmdDu, Path p) {
+    auto cmd = cmdDu ~ p.toString;
+    logger.infof("%-(%s %)", cmd);
+    return spawnProcess(cmd).wait;
+}
+
+int remoteDiskUsage(RsyncAddr addr, RemoteCmd remote, const string[] cmdDu) {
+    auto cmd = remote.match!((SshRemoteCmd a) => a.rsh);
+    cmd ~= addr.addr ~ cmdDu ~ addr.path;
+    logger.infof("%-(%s %)", cmd);
+    return spawnProcess(cmd).wait;
 }

@@ -19,7 +19,6 @@ import dsnapshot.config;
 int main(string[] args) {
     import dsnapshot.cmdgroup.admin;
     import dsnapshot.cmdgroup.backup;
-    import dsnapshot.cmdgroup.diskusage;
     import dsnapshot.cmdgroup.remote;
     import dsnapshot.cmdgroup.restore;
 
@@ -49,10 +48,6 @@ int main(string[] args) {
           return cmdBackup(conf.global, a, conf.snapshots);
       },
       (Config.Remotecmd a) => cmdRemote(a),
-          (Config.Diskusage a) {
-          loadConfig(conf);
-          return cmdDiskUsage(conf.snapshots, a);
-      },
       (Config.Restore a) {
           loadConfig(conf);
           return cmdRestore(conf.snapshots, a);
@@ -130,18 +125,6 @@ Config parseUserArgs(string[] args) @trusted {
             data.helpInfo = std.getopt.getopt(args,
                 "cmd", format("Command to execute (%-(%s, %))", [EnumMembers!(RemoteSubCmd)]), &data.cmd,
                 "path", "Path argument for the command", &data.path,
-                );
-            // dfmt on
-        }
-
-        void diskusageParse() {
-            Config.Diskusage data;
-            scope (success)
-                conf.data = data;
-
-            // dfmt off
-            data.helpInfo = std.getopt.getopt(args,
-                "s|snapshot", "Name of the snapshot to calculate the disk usage for", &data.name.value,
                 );
             // dfmt on
         }

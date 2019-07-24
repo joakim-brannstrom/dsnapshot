@@ -37,18 +37,13 @@ struct Config {
         std.getopt.GetoptResult helpInfo;
     }
 
-    struct Diskusage {
-        /// Name of the snapshot to calculate the disk usage of.
-        Name name;
-        std.getopt.GetoptResult helpInfo;
-    }
-
     struct Admin {
         /// Name of the snapshot to administrate.
         Name[] names;
 
         enum Cmd {
             list,
+            diskusage,
         }
 
         Cmd cmd;
@@ -82,7 +77,7 @@ struct Config {
         string progName;
     }
 
-    alias Type = Algebraic!(Help, Backup, Remotecmd, Diskusage, Restore, Verifyconfig, Admin);
+    alias Type = Algebraic!(Help, Backup, Remotecmd, Restore, Verifyconfig, Admin);
     Type data;
 
     Global global;
@@ -105,8 +100,6 @@ struct Config {
             defaultGetoptPrinter("backup:", a.helpInfo.options);
         }, (Remotecmd a) {
             defaultGetoptPrinter("remotecmd:", a.helpInfo.options);
-        }, (Diskusage a) {
-            defaultGetoptPrinter("diskusage:", a.helpInfo.options);
         }, (Restore a) { defaultGetoptPrinter("restore:", a.helpInfo.options); }, (Verifyconfig a) {
             writeln("verifyconfig:");
             writeln("Verify the configuration file without actually executing it");
