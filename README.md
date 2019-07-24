@@ -317,9 +317,9 @@ Executes all snapshots in the configuration file.
 This verify the configuration for errors without executing any commands. Run
 with `-v trace` for the most verbose output.
 
-## diskusage
+## admin
 
-Calculates the actual disk usage of the specified snapshot.
+Administrator commands such as calculating the disk usage.
 
 ## restore
 
