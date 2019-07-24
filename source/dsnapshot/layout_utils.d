@@ -19,7 +19,9 @@ version (unittest) {
     import unit_threaded.assertions;
 }
 
-auto fillLayout(Layout layout_, Flow flow, const RemoteCmd cmd) {
+@safe:
+
+Layout fillLayout(Layout layout_, Flow flow, const RemoteCmd cmd) {
     import std.algorithm : filter, map, sort;
     import std.array : array;
     import std.conv : to;
@@ -50,7 +52,7 @@ auto fillLayout(Layout layout_, Flow flow, const RemoteCmd cmd) {
     return rval;
 }
 
-Name[] snapshotNamesFromDir(Path dir) {
+Name[] snapshotNamesFromDir(Path dir) @trusted {
     import std.algorithm : filter, map, copy;
     import std.array : appender;
     import std.file : dirEntries, SpanMode, exists, isDir;
@@ -105,7 +107,7 @@ unittest {
 
     immutable tmpDir = "test_snapshot_scan";
     scope (exit)
-        rmdirRecurse(tmpDir);
+        () @trusted { rmdirRecurse(tmpDir); }();
     mkdir(tmpDir);
 
     const offset = 5.dur!"minutes";

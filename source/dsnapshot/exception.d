@@ -9,6 +9,8 @@ import logger = std.experimental.logger;
 
 import sumtype;
 
+@safe:
+
 class SnapshotException : Exception {
     this(SnapshotError s) {
         super(null);

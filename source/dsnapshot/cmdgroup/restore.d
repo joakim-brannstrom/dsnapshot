@@ -12,6 +12,7 @@ import std.exception : collectException;
 
 import dsnapshot.config : Config;
 import dsnapshot.exception;
+import dsnapshot.from;
 import dsnapshot.layout_utils;
 import dsnapshot.types;
 
@@ -175,9 +176,7 @@ void fakerootRemoteRestore(RemoteCmd cmd_, RsyncAddr addr, Name name, const stri
     restorePermissions(app.data, Path(restoreTo));
 }
 
-import dsnapshot.stats : PathStat;
-
-void restorePermissions(const PathStat[] pstats, const Path root) {
+void restorePermissions(const from.dsnapshot.stats.PathStat[] pstats, const Path root) {
     import core.sys.posix.sys.stat : S_IFMT, stat_t, stat, lstat, chmod;
     import core.sys.posix.unistd : chown, lchown;
     import std.file : isFile, isDir, isSymlink;

@@ -7,6 +7,8 @@ module dsnapshot.types;
 
 public import sumtype;
 
+@safe:
+
 /// Snapshots that are in the progress of being transfered have this suffix.
 immutable snapshotInProgressSuffix = "-in-progress";
 /// The actual rsync'ed data is in this directory.
@@ -81,6 +83,7 @@ struct Path {
     }
 }
 
+// TODO: maybe rename to SnapshotName?
 /// Name of an existing snapshot.
 struct Name {
     string value;
