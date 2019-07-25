@@ -159,6 +159,11 @@ struct LocalAddr {
     }
 }
 
+struct RemoteHost {
+    string addr;
+    string path;
+}
+
 struct RsyncAddr {
     string addr;
     string path;

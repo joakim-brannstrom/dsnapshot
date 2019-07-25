@@ -19,6 +19,7 @@ import dsnapshot.exception;
 import dsnapshot.layout : Name, Layout;
 import dsnapshot.layout_utils;
 import dsnapshot.console;
+import dsnapshot.backend;
 
 version (unittest) {
     import unit_threaded.assertions;
@@ -52,9 +53,8 @@ void snapshot(Snapshot snapshot, const Config.Backup conf) {
     import std.path : buildPath, setExtension;
     import std.datetime : Clock;
 
-    // Extract an updated layout of the snapshots at the destination.
-    auto layout = snapshot.syncCmd.match!((None a) => snapshot.layout,
-            (RsyncConfig a) => fillLayout(snapshot.layout, a.flow, snapshot.remoteCmd));
+    auto backend = makeBackend(snapshot);
+    auto layout = backend.update(snapshot.layout);
 
     auto flow = snapshot.syncCmd.match!((None a) => None.init.Flow, (RsyncConfig a) => a.flow);
 
@@ -92,7 +92,7 @@ void snapshot(Snapshot snapshot, const Config.Backup conf) {
         finishLocalSnapshot(a.dst, layout, newSnapshot);
     }, (FlowRsyncToLocal a) { finishLocalSnapshot(a.dst, layout, newSnapshot); },
             (FlowLocalToRsync a) {
-        finishRemoteSnapshot(a.dst, layout, snapshot.remoteCmd, newSnapshot);
+        finishRemoteSnapshot(RemoteHost(a.dst.addr, a.dst.path), layout, backend, newSnapshot);
     });
 }
 
@@ -267,31 +267,12 @@ void finishLocalSnapshot(const LocalAddr local, const Layout layout, const strin
     }
 }
 
-void finishRemoteSnapshot(const RsyncAddr addr, const Layout layout,
-        const RemoteCmd cmd_, const string newSnapshot) {
-    import std.path : buildPath;
-    import std.process : spawnProcess, wait;
-
-    { //TODO: create a helper function that execute commands
-        auto cmd = cmd_.match!((const SshRemoteCmd a) {
-            return a.toCmd(RemoteSubCmd.publishSnapshot, addr.addr,
-                buildPath(addr.path, newSnapshot));
-        });
-        logger.infof("%-(%s %)", cmd);
-        spawnProcess(cmd).wait;
-    }
+void finishRemoteSnapshot(const RemoteHost host, const Layout layout,
+        Backend backend, const string newSnapshot) {
+    backend.remoteCmd(host, RemoteSubCmd.publishSnapshot, newSnapshot);
 
     foreach (const name; layout.discarded.map!(a => a.name)) {
-        auto cmd = cmd_.match!((const SshRemoteCmd a) {
-            return a.toCmd(RemoteSubCmd.rmdirRecurse, addr.addr, buildPath(addr.path, name.value));
-        });
-
         logger.info("Removing old snapshot ", name.value);
-        try {
-            logger.infof("%-(%s %)", cmd);
-            spawnProcess(cmd).wait;
-        } catch (Exception e) {
-            logger.warning(e.msg);
-        }
+        backend.remoteCmd(host, RemoteSubCmd.rmdirRecurse, name.value);
     }
 }
