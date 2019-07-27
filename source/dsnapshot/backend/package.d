@@ -83,20 +83,19 @@ final class RsyncBackend : Backend {
     }
 
     override void removeDiscarded(const Flow flow, const Layout layout) {
-        import std.algorithm : map;
+        import std.algorithm : map, filter;
 
         void local(const LocalAddr local) @safe {
             import std.file : rmdirRecurse, exists, isDir;
 
-            foreach (const name; layout.discarded.map!(a => a.name)) {
-                const old = (local.value.Path ~ name.value).toString;
-                if (exists(old) && old.isDir) {
-                    logger.info("Removing old snapshot ", old);
-                    try {
-                        () @trusted { rmdirRecurse(old); }();
-                    } catch (Exception e) {
-                        logger.warning(e.msg);
-                    }
+            foreach (const old; layout.discarded
+                    .map!(a => (local.value.Path ~ a.name.value).toString)
+                    .filter!(a => exists(a) && a.isDir)) {
+                logger.info("Removing old snapshot ", old);
+                try {
+                    () @trusted { rmdirRecurse(old); }();
+                } catch (Exception e) {
+                    logger.warning(e.msg);
                 }
             }
         }
