@@ -34,9 +34,12 @@ interface Backend {
 
     /// Update layout of the snapshots at the destination in `flow`.
     Layout update(Layout layout);
+
+    /// Publish the snapshot in dst.
+    void publishSnapshot(Flow flow, string newSnapshot);
 }
 
-class RsyncBackend : Backend {
+final class RsyncBackend : Backend {
     RsyncConfig conf;
     RemoteCmd remoteCmd_;
 
@@ -62,5 +65,18 @@ class RsyncBackend : Backend {
         import dsnapshot.layout_utils;
 
         return fillLayout(layout, conf.flow, remoteCmd_);
+    }
+
+    override void publishSnapshot(const Flow flow, const string newSnapshot) {
+        static import dsnapshot.cmdgroup.remote;
+
+        flow.match!((None a) {}, (FlowLocal a) {
+            dsnapshot.cmdgroup.remote.publishSnapshot((a.dst.value.Path ~ newSnapshot).toString);
+        }, (FlowRsyncToLocal a) {
+            dsnapshot.cmdgroup.remote.publishSnapshot((a.dst.value.Path ~ newSnapshot).toString);
+        }, (FlowLocalToRsync a) {
+            this.remoteCmd(RemoteHost(a.dst.addr, a.dst.path),
+                RemoteSubCmd.publishSnapshot, newSnapshot);
+        });
     }
 }

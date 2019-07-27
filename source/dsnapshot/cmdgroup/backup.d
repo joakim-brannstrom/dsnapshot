@@ -88,6 +88,8 @@ void snapshot(Snapshot snapshot, const Config.Backup conf) {
         }
     });
 
+    backend.publishSnapshot(flow, newSnapshot);
+
     flow.match!((None a) {}, (FlowLocal a) {
         finishLocalSnapshot(a.dst, layout, newSnapshot);
     }, (FlowRsyncToLocal a) { finishLocalSnapshot(a.dst, layout, newSnapshot); },
@@ -250,9 +252,6 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow, const Ho
 
 void finishLocalSnapshot(const LocalAddr local, const Layout layout, const string newSnapshot) {
     import std.file : rmdirRecurse, exists, isDir;
-    import dsnapshot.cmdgroup.remote : publishSnapshot;
-
-    publishSnapshot((local.value.Path ~ newSnapshot).toString);
 
     foreach (const name; layout.discarded.map!(a => a.name)) {
         const old = (local.value.Path ~ name.value).toString;
@@ -269,7 +268,6 @@ void finishLocalSnapshot(const LocalAddr local, const Layout layout, const strin
 
 void finishRemoteSnapshot(const RemoteHost host, const Layout layout,
         Backend backend, const string newSnapshot) {
-    backend.remoteCmd(host, RemoteSubCmd.publishSnapshot, newSnapshot);
 
     foreach (const name; layout.discarded.map!(a => a.name)) {
         logger.info("Removing old snapshot ", name.value);

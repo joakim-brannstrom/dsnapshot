@@ -92,7 +92,7 @@ int cmdRemote(const Config.Remotecmd conf) nothrow {
 }
 
 /// Publish a snapshot that has the status "in-progress".
-int publishSnapshot(const string snapshot) nothrow {
+int publishSnapshot(const string snapshot) nothrow @safe {
     import std.algorithm : map, filter;
     import std.exception : collectException;
     import std.file : dirEntries, SpanMode, exists, mkdirRecurse, rmdirRecurse, rename;
