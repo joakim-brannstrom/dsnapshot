@@ -7,8 +7,9 @@ module dsnapshot.backend;
 
 import logger = std.experimental.logger;
 
-public import dsnapshot.types;
+import dsnapshot.process;
 public import dsnapshot.layout : Layout;
+public import dsnapshot.types;
 
 @safe:
 
@@ -53,15 +54,13 @@ final class RsyncBackend : Backend {
 
     override void remoteCmd(const RemoteHost host, const RemoteSubCmd cmd_, const string path) {
         import std.path : buildPath;
-        import std.process : spawnProcess, wait;
 
         auto cmd = remoteCmd_.match!((SshRemoteCmd a) {
             return a.toCmd(cmd_, host.addr, buildPath(host.path, path));
         });
-        logger.infof("%-(%s %)", cmd);
 
         // TODO: throw exception on failure?
-        spawnProcess(cmd).wait;
+        spawnProcessLog(cmd).wait;
     }
 
     override Layout update(Layout layout) {
