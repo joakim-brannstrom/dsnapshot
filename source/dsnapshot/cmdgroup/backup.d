@@ -89,13 +89,7 @@ void snapshot(Snapshot snapshot, const Config.Backup conf) {
     });
 
     backend.publishSnapshot(flow, newSnapshot);
-
-    flow.match!((None a) {}, (FlowLocal a) {
-        finishLocalSnapshot(a.dst, layout, newSnapshot);
-    }, (FlowRsyncToLocal a) { finishLocalSnapshot(a.dst, layout, newSnapshot); },
-            (FlowLocalToRsync a) {
-        finishRemoteSnapshot(RemoteHost(a.dst.addr, a.dst.path), layout, backend, newSnapshot);
-    });
+    backend.removeDiscarded(flow, layout);
 }
 
 void sync(const RsyncConfig conf, const Layout layout, const Flow flow, const Hooks hooks,
@@ -248,29 +242,4 @@ void sync(const RsyncConfig conf, const Layout layout, const Flow flow, const Ho
 
     if (executeHooks("post_exec", hooks.postExec, hookEnv) != 0)
         throw new SnapshotException(SnapshotException.PostExecFailed.init.SnapshotError);
-}
-
-void finishLocalSnapshot(const LocalAddr local, const Layout layout, const string newSnapshot) {
-    import std.file : rmdirRecurse, exists, isDir;
-
-    foreach (const name; layout.discarded.map!(a => a.name)) {
-        const old = (local.value.Path ~ name.value).toString;
-        if (exists(old) && old.isDir) {
-            logger.info("Removing old snapshot ", old);
-            try {
-                rmdirRecurse(old);
-            } catch (Exception e) {
-                logger.warning(e.msg);
-            }
-        }
-    }
-}
-
-void finishRemoteSnapshot(const RemoteHost host, const Layout layout,
-        Backend backend, const string newSnapshot) {
-
-    foreach (const name; layout.discarded.map!(a => a.name)) {
-        logger.info("Removing old snapshot ", name.value);
-        backend.remoteCmd(host, RemoteSubCmd.rmdirRecurse, name.value);
-    }
 }

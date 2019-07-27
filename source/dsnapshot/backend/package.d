@@ -30,13 +30,16 @@ Backend makeBackend(Snapshot s) {
  */
 interface Backend {
     /// Execute a command on the host that is the destination of the snapshots.
-    void remoteCmd(RemoteHost host, RemoteSubCmd cmd, string path);
+    void remoteCmd(const RemoteHost host, const RemoteSubCmd cmd, const string path);
 
     /// Update layout of the snapshots at the destination in `flow`.
     Layout update(Layout layout);
 
     /// Publish the snapshot in dst.
-    void publishSnapshot(Flow flow, string newSnapshot);
+    void publishSnapshot(const Flow flow, const string newSnapshot);
+
+    /// Remove discarded snapshots.
+    void removeDiscarded(const Flow flow, const Layout layout);
 }
 
 final class RsyncBackend : Backend {
@@ -48,7 +51,7 @@ final class RsyncBackend : Backend {
         this.remoteCmd_ = remoteCmd;
     }
 
-    override void remoteCmd(RemoteHost host, RemoteSubCmd cmd_, string path) {
+    override void remoteCmd(const RemoteHost host, const RemoteSubCmd cmd_, const string path) {
         import std.path : buildPath;
         import std.process : spawnProcess, wait;
 
@@ -78,5 +81,36 @@ final class RsyncBackend : Backend {
             this.remoteCmd(RemoteHost(a.dst.addr, a.dst.path),
                 RemoteSubCmd.publishSnapshot, newSnapshot);
         });
+    }
+
+    override void removeDiscarded(const Flow flow, const Layout layout) {
+        import std.algorithm : map;
+
+        void local(const LocalAddr local) @safe {
+            import std.file : rmdirRecurse, exists, isDir;
+
+            foreach (const name; layout.discarded.map!(a => a.name)) {
+                const old = (local.value.Path ~ name.value).toString;
+                if (exists(old) && old.isDir) {
+                    logger.info("Removing old snapshot ", old);
+                    try {
+                        () @trusted { rmdirRecurse(old); }();
+                    } catch (Exception e) {
+                        logger.warning(e.msg);
+                    }
+                }
+            }
+        }
+
+        void remote(const RemoteHost host) @safe {
+            foreach (const name; layout.discarded.map!(a => a.name)) {
+                logger.info("Removing old snapshot ", name.value);
+                this.remoteCmd(host, RemoteSubCmd.rmdirRecurse, name.value);
+            }
+        }
+
+        flow.match!((None a) {}, (FlowLocal a) { local(a.dst); }, (FlowRsyncToLocal a) {
+            local(a.dst);
+        }, (FlowLocalToRsync a) { remote(RemoteHost(a.dst.addr, a.dst.path)); });
     }
 }
