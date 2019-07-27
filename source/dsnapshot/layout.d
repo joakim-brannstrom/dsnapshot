@@ -189,7 +189,7 @@ struct Layout {
         buckets.length = times.length;
     }
 
-    bool isFirstBucketEmpty() {
+    bool isFirstBucketEmpty() @safe pure nothrow const @nogc {
         if (buckets.length == 0)
             return false;
         return buckets[0].value.match!((Empty a) => true, (Snapshot a) => false);
@@ -227,7 +227,7 @@ struct Layout {
     }
 
     /// Returns: the time of the snapshot that is in the bucket
-    Nullable!SysTime snapshotTimeInBucket(size_t idx) {
+    Nullable!SysTime snapshotTimeInBucket(size_t idx) @safe pure nothrow const @nogc {
         typeof(return) rval;
         if (idx >= buckets.length)
             return rval;

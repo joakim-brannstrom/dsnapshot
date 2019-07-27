@@ -5,6 +5,8 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 */
 module dsnapshot.console;
 
+@safe:
+
 bool isInteractiveShell() {
     import core.stdc.stdio;
     import core.sys.posix.unistd;
