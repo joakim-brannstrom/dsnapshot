@@ -38,18 +38,17 @@ interface Backend {
     /// Execute a command on the host that is the destination of the snapshots.
     void remoteCmd(const RemoteHost host, const RemoteSubCmd cmd, const string path);
 
-    /// Update layout of the snapshots at the destination in `flow`.
+    /// Update layout of the snapshots at the destination.
     Layout update(Layout layout);
 
     /// Publish the snapshot in dst.
-    void publishSnapshot(const Flow flow, const string newSnapshot);
+    void publishSnapshot(const string newSnapshot);
 
     /// Remove discarded snapshots.
-    void removeDiscarded(const Flow flow, const Layout layout);
+    void removeDiscarded(const Layout layout);
 
-    /// Sync from src to dst in the flow.
-    void sync(const Flow flow, const Layout layout, const Snapshot snapshot,
-            const string nameOfNewSnapshot);
+    /// Sync from src to dst.
+    void sync(const Layout layout, const Snapshot snapshot, const string nameOfNewSnapshot);
 }
 
 final class RsyncBackend : Backend {
@@ -81,10 +80,10 @@ final class RsyncBackend : Backend {
         return fillLayout(layout, conf.flow, remoteCmd_);
     }
 
-    override void publishSnapshot(const Flow flow, const string newSnapshot) {
+    override void publishSnapshot(const string newSnapshot) {
         static import dsnapshot.cmdgroup.remote;
 
-        flow.match!((None a) {}, (FlowLocal a) {
+        conf.flow.match!((None a) {}, (FlowLocal a) {
             dsnapshot.cmdgroup.remote.publishSnapshot((a.dst.value.Path ~ newSnapshot).toString);
         }, (FlowRsyncToLocal a) {
             dsnapshot.cmdgroup.remote.publishSnapshot((a.dst.value.Path ~ newSnapshot).toString);
@@ -94,7 +93,7 @@ final class RsyncBackend : Backend {
         });
     }
 
-    override void removeDiscarded(const Flow flow, const Layout layout) {
+    override void removeDiscarded(const Layout layout) {
         void local(const LocalAddr local) @safe {
             import std.file : rmdirRecurse, exists, isDir;
 
@@ -117,13 +116,12 @@ final class RsyncBackend : Backend {
             }
         }
 
-        flow.match!((None a) {}, (FlowLocal a) { local(a.dst); }, (FlowRsyncToLocal a) {
+        conf.flow.match!((None a) {}, (FlowLocal a) { local(a.dst); }, (FlowRsyncToLocal a) {
             local(a.dst);
         }, (FlowLocalToRsync a) { remote(RemoteHost(a.dst.addr, a.dst.path)); });
     }
 
-    override void sync(const Flow flow, const Layout layout, const Snapshot snapshot,
-            const string nameOfNewSnapshot) {
+    override void sync(const Layout layout, const Snapshot snapshot, const string nameOfNewSnapshot) {
         import std.algorithm : canFind;
         import std.array : replace, array, empty;
         import std.conv : to;
@@ -194,7 +192,7 @@ final class RsyncBackend : Backend {
                 opts ~= ["-x"];
 
             if (conf.useLinkDest && !latest.isNull) {
-                flow.match!((None a) {}, (FlowLocal a) {
+                conf.flow.match!((None a) {}, (FlowLocal a) {
                     opts ~= [
                         "--link-dest",
                         (a.dst.value.Path ~ latest.get.name.value ~ snapshotData).toString
@@ -218,7 +216,7 @@ final class RsyncBackend : Backend {
                 opts ~= ["--exclude", a];
 
             if (conf.useFakeRoot) {
-                flow.match!((None a) {}, (FlowLocal a) {
+                conf.flow.match!((None a) {}, (FlowLocal a) {
                     opts = conf.fakerootArgs.map!(b => b.replace(snapshotFakerootSaveEnvId,
                         (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotFakerootEnv).toString)).array
                         ~ opts;
@@ -234,7 +232,7 @@ final class RsyncBackend : Backend {
                 });
             }
 
-            flow.match!((None a) {}, (FlowLocal a) {
+            conf.flow.match!((None a) {}, (FlowLocal a) {
                 src = fixRsyncAddr(a.src.value);
                 dst = (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotData).toString;
                 opts ~= [src, dst];
@@ -260,7 +258,7 @@ final class RsyncBackend : Backend {
         }
 
         // Configure local destination
-        flow.match!((None a) {}, (FlowLocal a) => setupLocalDest(a.dst.value.Path ~ nameOfNewSnapshot),
+        conf.flow.match!((None a) {}, (FlowLocal a) => setupLocalDest(a.dst.value.Path ~ nameOfNewSnapshot),
                 (FlowRsyncToLocal a) => setupLocalDest(a.dst.value.Path ~ nameOfNewSnapshot),
                 (FlowLocalToRsync a) => setupRemoteDest(remoteCmd_, a.dst, nameOfNewSnapshot));
 

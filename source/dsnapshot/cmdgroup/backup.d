@@ -54,8 +54,6 @@ void snapshot(Snapshot snapshot, const Config.Backup conf) {
     auto backend = makeBackend(snapshot, conf);
     auto layout = backend.update(snapshot.layout);
 
-    auto flow = snapshot.syncCmd.match!((None a) => None.init.Flow, (RsyncConfig a) => a.flow);
-
     logger.trace("Updated layout with information from destination: ", layout);
 
     const newSnapshot = () {
@@ -65,8 +63,8 @@ void snapshot(Snapshot snapshot, const Config.Backup conf) {
         return Clock.currTime.toUTC.toISOExtString ~ snapshotInProgressSuffix;
     }();
 
-    backend.sync(flow, layout, snapshot, newSnapshot);
+    backend.sync(layout, snapshot, newSnapshot);
 
-    backend.publishSnapshot(flow, newSnapshot);
-    backend.removeDiscarded(flow, layout);
+    backend.publishSnapshot(newSnapshot);
+    backend.removeDiscarded(layout);
 }
