@@ -14,6 +14,7 @@ import dsnapshot.config : Config;
 import dsnapshot.exception;
 import dsnapshot.from;
 import dsnapshot.layout_utils;
+import dsnapshot.process;
 import dsnapshot.types;
 
 version (unittest) {
@@ -58,7 +59,6 @@ private:
 int restore(const RsyncConfig conf, Snapshot snapshot, const Config.Restore rconf) {
     import std.file : exists, mkdirRecurse;
     import std.path : buildPath;
-    import std.process : spawnProcess, wait;
     import dsnapshot.console : isInteractiveShell;
 
     // Extract an updated layout of the snapshots at the destination.
@@ -114,8 +114,7 @@ int restore(const RsyncConfig conf, Snapshot snapshot, const Config.Restore rcon
 
     logger.infof("Restoring %s to %s", bestFitSnapshot.name.value, rconf.restoreTo);
 
-    logger.infof("%-(%s %)", opts);
-    if (spawnProcess(opts).wait != 0)
+    if (spawnProcessLog(opts).wait != 0)
         throw new SnapshotException(SnapshotException.SyncFailed(src,
                 rconf.restoreTo).SnapshotError);
 
@@ -142,7 +141,6 @@ void fakerootLocalRestore(const Path root, const string restoreTo) {
 void fakerootRemoteRestore(RemoteCmd cmd_, RsyncAddr addr, Name name, const string restoreTo) {
     import std.array : appender;
     import std.path : buildPath;
-    import std.process : execute;
     import std.string : lineSplitter, strip;
     import dsnapshot.stats;
 
@@ -150,8 +148,7 @@ void fakerootRemoteRestore(RemoteCmd cmd_, RsyncAddr addr, Name name, const stri
         return a.toCmd(RemoteSubCmd.fakerootStats, addr.addr, buildPath(addr.path, name.value));
     });
 
-    logger.infof("%-(%s %)", cmd);
-    auto res = execute(cmd);
+    auto res = executeLog(cmd);
 
     if (res.status != 0) {
         logger.errorf("Unable to restore permissions to %s from %s", restoreTo,

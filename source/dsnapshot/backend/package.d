@@ -124,8 +124,7 @@ final class RsyncBackend : Backend {
         import std.file : remove, exists, mkdirRecurse;
         import std.format : format;
         import std.path : buildPath, setExtension;
-        import std.process : spawnProcess, wait, execute, spawnShell,
-            executeShell, escapeShellFileName;
+        import std.process : spawnShell;
         import std.stdio : stdin, File;
         import dsnapshot.console;
 
@@ -156,8 +155,7 @@ final class RsyncBackend : Backend {
                     buildPath(addr.path, newSnapshot, snapshotData));
             });
             if (!cmd.empty) {
-                logger.infof("%-(%s %)", cmd);
-                spawnProcess(cmd).wait;
+                spawnProcessLog(cmd).wait;
             }
         }
 
@@ -265,16 +263,15 @@ final class RsyncBackend : Backend {
         if (executeHooks("pre_exec", snapshot.hooks.preExec, hookEnv) != 0)
             throw new SnapshotException(SnapshotException.PreExecFailed.init.SnapshotError);
 
-        logger.infof("%-(%s %)", opts);
-        auto syncPid = spawnProcess(opts);
+        auto syncPid = spawnProcessLog(opts);
 
         if (conf.lowPrio) {
             try {
                 logger.infof("Changing IO and CPU priority to low (pid %s)", syncPid.processID);
-                execute([
+                executeLog([
                         "ionice", "-c", "3", "-p", syncPid.processID.to!string
                         ]);
-                execute(["renice", "+12", "-p", syncPid.processID.to!string]);
+                executeLog(["renice", "+12", "-p", syncPid.processID.to!string]);
             } catch (Exception e) {
                 logger.info(e.msg);
             }

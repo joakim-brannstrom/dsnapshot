@@ -6,7 +6,8 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 module dsnapshot.process;
 
 import logger = std.experimental.logger;
-public import std.process;
+import std.process;
+public import std.process : wait;
 public import std.typecons : Flag, Yes;
 
 version (unittest) {
@@ -22,9 +23,14 @@ class ProcessException : Throwable {
     int exitCode;
 }
 
-auto spawnProcessLog(Args...)(string[] cmd_, auto ref Args args) {
+auto spawnProcessLog(Args...)(const(string)[] cmd_, auto ref Args args) {
     logger.infof("%-(%s %)", cmd_);
     return spawnProcess(cmd_, args);
+}
+
+auto executeLog(Args...)(const(string)[] cmd_, auto ref Args args) {
+    logger.infof("%-(%s %)", cmd_);
+    return execute(cmd_, args);
 }
 
 /** Blocks until finished.
