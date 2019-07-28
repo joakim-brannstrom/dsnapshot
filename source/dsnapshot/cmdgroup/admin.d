@@ -9,11 +9,11 @@ import logger = std.experimental.logger;
 import std.algorithm;
 import std.array : empty, array;
 import std.exception : collectException;
-import std.process : spawnProcess, wait;
 import std.stdio : writeln;
 
 import dsnapshot.config : Config;
 import dsnapshot.exception;
+import dsnapshot.process;
 import dsnapshot.types;
 
 @safe:
@@ -88,14 +88,11 @@ void cmdDiskUsage(Snapshot snapshot, Flow flow) {
 }
 
 int localDiskUsage(const string[] cmdDu, Path p) {
-    auto cmd = cmdDu ~ p.toString;
-    logger.infof("%-(%s %)", cmd);
-    return spawnProcess(cmd).wait;
+    return spawnProcessLog(cmdDu ~ p.toString).wait;
 }
 
-int remoteDiskUsage(RsyncAddr addr, RemoteCmd remote, const string[] cmdDu) {
+int remoteDiskUsage(RemoteHost host, RemoteCmd remote, const string[] cmdDu) {
     auto cmd = remote.match!((SshRemoteCmd a) => a.rsh);
-    cmd ~= addr.addr ~ cmdDu ~ addr.path;
-    logger.infof("%-(%s %)", cmd);
-    return spawnProcess(cmd).wait;
+    cmd ~= host.addr ~ cmdDu ~ host.path;
+    return spawnProcessLog(cmd).wait;
 }
