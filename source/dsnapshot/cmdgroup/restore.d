@@ -21,7 +21,7 @@ version (unittest) {
     import unit_threaded.assertions;
 }
 
-int cmdRestore(Snapshot[] snapshots, const Config.Restore conf) nothrow {
+int cmdRestore(SnapshotConfig[] snapshots, const Config.Restore conf) nothrow {
     import dsnapshot.layout;
 
     if (conf.name.value.empty) {
@@ -56,7 +56,7 @@ int cmdRestore(Snapshot[] snapshots, const Config.Restore conf) nothrow {
 
 private:
 
-int restore(const RsyncConfig conf, Snapshot snapshot, const Config.Restore rconf) {
+int restore(const RsyncConfig conf, SnapshotConfig snapshot, const Config.Restore rconf) {
     import std.file : exists, mkdirRecurse;
     import std.path : buildPath;
     import dsnapshot.console : isInteractiveShell;

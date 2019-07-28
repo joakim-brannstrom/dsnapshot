@@ -243,7 +243,7 @@ void loadConfig(ref Config conf) @trusted {
 
     tables["snapshot"] = (ref Config c, ref TOMLValue snapshots) {
         foreach (name, data; snapshots) {
-            Snapshot s;
+            SnapshotConfig s;
             s.name = name;
             s.layout = makeDefaultLayout;
             foreach (k, v; data) {

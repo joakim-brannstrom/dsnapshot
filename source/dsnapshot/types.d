@@ -89,8 +89,7 @@ struct Name {
     string value;
 }
 
-//TODO: rename to SnapshotConfig
-struct Snapshot {
+struct SnapshotConfig {
     import dsnapshot.layout : Layout;
 
     /// Name of this snapshot
