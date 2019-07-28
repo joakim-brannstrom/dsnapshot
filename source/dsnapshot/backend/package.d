@@ -17,17 +17,13 @@ public import dsnapshot.types;
 @safe:
 
 Backend makeBackend(Snapshot s, const dsnapshot.config.Config.Backup backup) {
-    import sumtype;
-
-    auto rval = s.syncCmd.match!((None a) {
-        logger.info("Missing 'command' configuration: ", s.name);
-        return null;
-    }, (RsyncConfig a) => new RsyncBackend(a, s.remoteCmd, backup.ignoreRsyncErrorCodes));
+    auto rval = s.syncCmd.match!((None a) { return null; },
+            (RsyncConfig a) => new RsyncBackend(a, s.remoteCmd, backup.ignoreRsyncErrorCodes));
 
     if (rval is null) {
-        throw new Exception("No backend specified. Supported are: rsync");
+        logger.infof("No backend specified for %s. Supported are: rsync", s.name);
+        throw new Exception(null);
     }
-
     return rval;
 }
 
