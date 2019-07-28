@@ -73,7 +73,7 @@ Duration fitness(const SysTime a, const SysTime b) {
 }
 
 /// Returns: the index of the interval that enclose `time`.
-Nullable!size_t bestFitInterval(const SysTime time, const Interval!SysTime[] candidates) {
+Nullable!size_t bestFitInterval(const SysTime time, const Interval!SysTime[] candidates) @safe pure nothrow {
     typeof(return) rval;
     // can't use contains because we want the intervals to be inverted, open
     // beginning and closed end. this is to put times that are on the edge in
@@ -189,6 +189,14 @@ struct Layout {
         buckets.length = times.length;
     }
 
+    Layout dup() @safe pure nothrow const {
+        Layout rval;
+        rval.buckets = buckets.dup;
+        rval.times = times.dup;
+        rval.discarded = discarded.dup;
+        return rval;
+    }
+
     bool isFirstBucketEmpty() @safe pure nothrow const @nogc {
         if (buckets.length == 0)
             return false;
@@ -237,7 +245,7 @@ struct Layout {
     }
 
     /// Returns: the bucket which interval enclose `time`.
-    Nullable!Snapshot bestFitBucket(const SysTime time) {
+    Nullable!Snapshot bestFitBucket(const SysTime time) @safe const {
         typeof(return) rval;
 
         const fitIdx = bestFitInterval(time, times);

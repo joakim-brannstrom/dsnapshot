@@ -21,7 +21,7 @@ version (unittest) {
     import unit_threaded.assertions;
 }
 
-int cmdRestore(SnapshotConfig[] snapshots, const Config.Restore conf) nothrow {
+int cmdRestore(const SnapshotConfig[] snapshots, const Config.Restore conf) nothrow {
     import dsnapshot.layout;
 
     if (conf.name.value.empty) {
@@ -35,10 +35,10 @@ int cmdRestore(SnapshotConfig[] snapshots, const Config.Restore conf) nothrow {
 
     foreach (snapshot; snapshots.filter!(a => a.name == conf.name.value)) {
         try {
-            return snapshot.syncCmd.match!((None a) {
+            return snapshot.syncCmd.match!((const None a) {
                 logger.infof("Unable to restore %s (missing command configuration)", snapshot.name);
                 return 1;
-            }, (RsyncConfig a) => restore(a, snapshot, conf));
+            }, (const RsyncConfig a) => restore(a, snapshot, conf));
         } catch (SnapshotException e) {
             e.errMsg.match!(a => a.print).collectException;
             logger.error(e.msg).collectException;
@@ -56,16 +56,17 @@ int cmdRestore(SnapshotConfig[] snapshots, const Config.Restore conf) nothrow {
 
 private:
 
-int restore(const RsyncConfig conf, SnapshotConfig snapshot, const Config.Restore rconf) {
+int restore(const RsyncConfig conf, const SnapshotConfig snapshot, const Config.Restore rconf) {
     import std.file : exists, mkdirRecurse;
     import std.path : buildPath;
     import dsnapshot.console : isInteractiveShell;
 
     // Extract an updated layout of the snapshots at the destination.
-    auto layout = snapshot.syncCmd.match!((None a) => snapshot.layout,
-            (RsyncConfig a) => fillLayout(snapshot.layout, a.flow, snapshot.remoteCmd));
+    auto layout = snapshot.syncCmd.match!((const None a) => snapshot.layout,
+            (const RsyncConfig a) => fillLayout(snapshot.layout, a.flow, snapshot.remoteCmd));
 
-    auto flow = snapshot.syncCmd.match!((None a) => None.init.Flow, (RsyncConfig a) => a.flow);
+    auto flow = snapshot.syncCmd.match!((const None a) => None.init.Flow,
+            (const RsyncConfig a) => a.flow);
 
     const bestFitSnapshot = layout.bestFitBucket(rconf.time);
     if (bestFitSnapshot.isNull) {
@@ -138,7 +139,8 @@ void fakerootLocalRestore(const Path root, const string restoreTo) {
     restorePermissions(pstats, Path(restoreTo));
 }
 
-void fakerootRemoteRestore(RemoteCmd cmd_, RemoteHost addr, Name name, const string restoreTo) {
+void fakerootRemoteRestore(const RemoteCmd cmd_, const RemoteHost addr,
+        const Name name, const string restoreTo) {
     import std.array : appender;
     import std.path : buildPath;
     import std.string : lineSplitter, strip;
