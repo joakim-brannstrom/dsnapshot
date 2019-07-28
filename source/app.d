@@ -457,9 +457,9 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
     if (srcAddr.empty && dstAddr.empty) {
         rval.flow = FlowLocal(LocalAddr(src.expandTilde), LocalAddr(dst));
     } else if (!srcAddr.empty && dstAddr.empty) {
-        rval.flow = FlowRsyncToLocal(RsyncAddr(srcAddr, src), LocalAddr(dst));
+        rval.flow = FlowRsyncToLocal(RemoteHost(srcAddr, src), LocalAddr(dst));
     } else if (srcAddr.empty && !dstAddr.empty) {
-        rval.flow = FlowLocalToRsync(LocalAddr(src), RsyncAddr(dstAddr, dst));
+        rval.flow = FlowLocalToRsync(LocalAddr(src), RemoteHost(dstAddr, dst));
     } else {
         logger.warning("The combination of src, src_addr, dst and dst_addr is not supported. It either has to be local->local, local->remote, remote->local");
     }

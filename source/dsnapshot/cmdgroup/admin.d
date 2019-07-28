@@ -91,8 +91,8 @@ int localDiskUsage(const string[] cmdDu, Path p) {
     return spawnProcessLog(cmdDu ~ p.toString).wait;
 }
 
-int remoteDiskUsage(RsyncAddr addr, RemoteCmd remote, const string[] cmdDu) {
+int remoteDiskUsage(RemoteHost host, RemoteCmd remote, const string[] cmdDu) {
     auto cmd = remote.match!((SshRemoteCmd a) => a.rsh);
-    cmd ~= addr.addr ~ cmdDu ~ addr.path;
+    cmd ~= host.addr ~ cmdDu ~ host.path;
     return spawnProcessLog(cmd).wait;
 }

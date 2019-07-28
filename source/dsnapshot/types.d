@@ -164,12 +164,7 @@ struct RemoteHost {
     string path;
 }
 
-struct RsyncAddr {
-    string addr;
-    string path;
-}
-
-string fixRsyncAddr(const string a) {
+string fixRemteHostForRsync(const string a) {
     if (a.length != 0 && a[$ - 1] != '/')
         return a ~ "/";
     return a;
@@ -189,13 +184,13 @@ struct FlowLocal {
 
 /// Flow of data using a remote rsync address to a local destination.
 struct FlowRsyncToLocal {
-    RsyncAddr src;
+    RemoteHost src;
     LocalAddr dst;
 }
 
 struct FlowLocalToRsync {
     LocalAddr src;
-    RsyncAddr dst;
+    RemoteHost dst;
 }
 
 alias Flow = SumType!(None, FlowLocal, FlowRsyncToLocal, FlowLocalToRsync);

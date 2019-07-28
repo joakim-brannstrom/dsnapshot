@@ -149,7 +149,7 @@ final class RsyncBackend : Backend {
         }
 
         static void setupRemoteDest(const RemoteCmd remoteCmd,
-                const RsyncAddr addr, const string newSnapshot) @safe {
+                const RemoteHost addr, const string newSnapshot) @safe {
             string[] cmd = remoteCmd.match!((const SshRemoteCmd a) {
                 return a.toCmd(RemoteSubCmd.mkdirRecurse, addr.addr,
                     buildPath(addr.path, newSnapshot, snapshotData));
@@ -227,15 +227,15 @@ final class RsyncBackend : Backend {
             }
 
             conf.flow.match!((None a) {}, (FlowLocal a) {
-                src = fixRsyncAddr(a.src.value);
+                src = fixRemteHostForRsync(a.src.value);
                 dst = (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotData).toString;
                 opts ~= [src, dst];
             }, (FlowRsyncToLocal a) {
-                src = fixRsyncAddr(makeRsyncAddr(a.src.addr, a.src.path));
+                src = fixRemteHostForRsync(makeRsyncAddr(a.src.addr, a.src.path));
                 dst = (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotData).toString;
                 opts ~= [src, dst];
             }, (FlowLocalToRsync a) {
-                src = fixRsyncAddr(a.src.value);
+                src = fixRemteHostForRsync(a.src.value);
                 dst = makeRsyncAddr(a.dst.addr, buildPath(a.dst.path,
                     nameOfNewSnapshot, snapshotData));
                 opts ~= [src, dst];

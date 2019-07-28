@@ -91,13 +91,13 @@ int restore(const RsyncConfig conf, Snapshot snapshot, const Config.Restore rcon
             opts ~= ["--exclude", a];
 
         flow.match!((None a) {}, (FlowLocal a) {
-            src = fixRsyncAddr((a.dst.value.Path ~ bestFitSnapshot.name.value ~ snapshotData)
+            src = fixRemteHostForRsync((a.dst.value.Path ~ bestFitSnapshot.name.value ~ snapshotData)
                 .toString);
         }, (FlowRsyncToLocal a) {
-            src = fixRsyncAddr((a.dst.value.Path ~ bestFitSnapshot.name.value ~ snapshotData)
+            src = fixRemteHostForRsync((a.dst.value.Path ~ bestFitSnapshot.name.value ~ snapshotData)
                 .toString);
         }, (FlowLocalToRsync a) {
-            src = makeRsyncAddr(a.dst.addr, fixRsyncAddr(buildPath(a.dst.path,
+            src = makeRsyncAddr(a.dst.addr, fixRemteHostForRsync(buildPath(a.dst.path,
                 bestFitSnapshot.name.value, snapshotData)));
         });
 
@@ -138,7 +138,7 @@ void fakerootLocalRestore(const Path root, const string restoreTo) {
     restorePermissions(pstats, Path(restoreTo));
 }
 
-void fakerootRemoteRestore(RemoteCmd cmd_, RsyncAddr addr, Name name, const string restoreTo) {
+void fakerootRemoteRestore(RemoteCmd cmd_, RemoteHost addr, Name name, const string restoreTo) {
     import std.array : appender;
     import std.path : buildPath;
     import std.string : lineSplitter, strip;
