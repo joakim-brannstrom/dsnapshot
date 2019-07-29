@@ -26,6 +26,7 @@ int main(string[] args) {
     }
 
     chdir("test");
+    cleanupAfterOldTest;
 
     args = () {
         if (args.length > 1)
@@ -34,4 +35,26 @@ int main(string[] args) {
     }();
 
     return spawnProcess(["dub", "test", "--"] ~ args).wait;
+}
+
+private:
+
+void cleanupAfterOldTest() {
+    import core.thread : Thread;
+    import core.time : dur;
+
+    immutable tmpDir = "build";
+
+    // prepare by cleaning up
+    if (exists(tmpDir)) {
+        while (true) {
+            try {
+                rmdirRecurse(tmpDir);
+                break;
+            } catch (Exception e) {
+                writeln(e.msg);
+            }
+            Thread.sleep(100.dur!"msecs");
+        }
+    }
 }

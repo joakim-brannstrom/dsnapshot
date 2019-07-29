@@ -10,6 +10,7 @@ import std.algorithm : map, filter, canFind;
 import std.array : empty, array;
 import std.exception : collectException;
 
+import dsnapshot.backend;
 import dsnapshot.config : Config;
 import dsnapshot.exception;
 import dsnapshot.from;
@@ -21,7 +22,7 @@ version (unittest) {
     import unit_threaded.assertions;
 }
 
-int cmdRestore(const SnapshotConfig[] snapshots, const Config.Restore conf) nothrow {
+int cmdRestore(SnapshotConfig[] snapshots, const Config.Restore conf) nothrow {
     import dsnapshot.layout;
 
     if (conf.name.value.empty) {
@@ -56,10 +57,16 @@ int cmdRestore(const SnapshotConfig[] snapshots, const Config.Restore conf) noth
 
 private:
 
-int restore(const RsyncConfig conf, const SnapshotConfig snapshot, const Config.Restore rconf) {
+int restore(const RsyncConfig conf, SnapshotConfig snapshot, const Config.Restore rconf) {
     import std.file : exists, mkdirRecurse;
     import std.path : buildPath;
     import dsnapshot.console : isInteractiveShell;
+
+    auto backend = makeSyncBackend(snapshot);
+    auto crypt = makeCrypBackend(snapshot.crypt);
+    open(crypt, backend.flow);
+    scope (exit)
+        crypt.close;
 
     // Extract an updated layout of the snapshots at the destination.
     auto layout = snapshot.syncCmd.match!((const None a) => snapshot.layout,

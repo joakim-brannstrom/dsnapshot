@@ -215,6 +215,60 @@ fakeroot_args = ["fakeroot-ng", "-d", "-p", "$$SAVE_ENV_FILE$$"]
 rsync_fakeroot_args = ["--rsync-path"]
 ```
 
+### Configuring encfs for encrypted snapshots
+
+`encfs` can be used to encrypt the snapshots. The configurations parameters for
+encfs is in the encfs group.
+
+The encfs encrypted data (in encfs terms the rootDir). This must be located
+outside of the destination. Both `dst` and `encrypted_path` must exist before
+running dsnapshot.
+```toml
+[snapshot.example.encfs]
+encrypted_path = "/foo/bar/encfs"
+[snapshot.example.rsync]
+dst = "/foo/bar/dst"
+```
+
+If the configuration file for the encrypted data is not located in the root of encrypted_path it can be specified.
+```toml
+[snapshot.example.encfs]
+config = "path/to/config.xml"
+```
+
+The password for opening the encrypted data can be specified in two ways. The
+first one uses `echo` to send the password to encfs when it asks for the
+password. To avoid printing the password in the logs that dsnapshot prodcues it
+is put in the environment variable DSNAPSHOT_ENCFS_PWD. This may be insecure
+for your use case so think about it.
+```toml
+[snapshot.example.encfs]
+passwd = "foo"
+```
+
+The other way of specifying the password is to replace the arguments that
+dsnapshot uses with yours.
+```toml
+[snapshot.example.encfs]
+# to use an external password program you could instead do this
+mount_cmd = ["encfs", "-i", "1", "--extpass", "ssh-askpass"]
+```
+
+To change what parameters are used when mounting and unmounting. This is useful
+when e.g. debugging by add `-v`.
+```toml
+[snapshot.example.encfs]
+mount_cmd = ["encfs", "-i", "1"]
+unmount_cmd = ["encfs", "-u"]
+```
+
+To pass on extra arguments to FUSE when mounting and unmounting.
+```toml
+[snapshot.example.encfs]
+mount_fuse_opts = ["-o", "myopt"]
+unmount_fuse_opts = ["-o", "myopt"]
+```
+
 ## Example 1: Backups kept over a year
 
 This will create create a total span of backups that has a higher frequency the
@@ -302,6 +356,28 @@ src = "/"
 dst = "/home/example_backup/root"
 dst_addr = "example_backup@lipwig"
 fakeroot = true
+```
+
+## Example 6: Encrypt the snapshots
+
+In this example the directories used in encrypted_path, src and dst exists
+before dsnapshot is executed. encfs has been executed with the arguments
+`encfs -f -v ~/backup/example_encfs ~/backup/example` to let it create a
+configuration in `~/backup/example_encfs`.
+
+dsnasphot will then open encrypted_path path at dst before doing anything.
+
+The end result is that the snapshots that are taken will be encrypted. This is
+useful for storing the snapshots on an untrusted cloud provider.
+
+```toml
+[snapshot.example]
+[snapshot.example.encfs]
+passwd = "my pwd"
+encrypted_path = "~/backup/example_encfs"
+[snapshot.example.rsync]
+src = "~/example"
+dst = "~/backup/example"
 ```
 
 # Usage

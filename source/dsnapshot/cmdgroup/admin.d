@@ -11,6 +11,7 @@ import std.array : empty, array;
 import std.exception : collectException;
 import std.stdio : writeln;
 
+import dsnapshot.backend;
 import dsnapshot.config : Config;
 import dsnapshot.exception;
 import dsnapshot.process;
@@ -31,15 +32,20 @@ int cmdAdmin(SnapshotConfig[] snapshots, const Config.Admin conf) nothrow {
     }();
 
     foreach (snapshot; operateOn) {
-        auto flow = snapshot.syncCmd.match!((None a) => None.init.Flow, (RsyncConfig a) => a.flow);
-
         try {
+            auto backend = makeSyncBackend(snapshot);
+
+            auto crypt = makeCrypBackend(snapshot.crypt);
+            open(crypt, backend.flow);
+            scope (exit)
+                crypt.close;
+
             final switch (conf.cmd) with (Config.Admin) {
             case Cmd.list:
-                cmdList(snapshot, flow);
+                cmdList(snapshot, backend.flow);
                 break;
             case Cmd.diskusage:
-                cmdDiskUsage(snapshot, flow);
+                cmdDiskUsage(snapshot, backend.flow);
                 break;
             }
         } catch (SnapshotException e) {

@@ -51,7 +51,13 @@ private:
 void snapshot(SnapshotConfig snapshot, const Config.Backup conf) {
     import std.datetime : Clock;
 
-    auto backend = makeBackend(snapshot, conf);
+    auto backend = makeSyncBackend(snapshot, conf);
+
+    auto crypt = makeCrypBackend(snapshot.crypt);
+    open(crypt, backend.flow);
+    scope (exit)
+        crypt.close;
+
     auto layout = backend.update(snapshot.layout);
 
     logger.trace("Updated layout with information from destination: ", layout);

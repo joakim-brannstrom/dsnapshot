@@ -11,21 +11,11 @@ import std.algorithm : map, filter;
 import dsnapshot.process;
 import dsnapshot.config;
 import dsnapshot.exception;
+public import dsnapshot.backend.crypt;
 public import dsnapshot.layout : Layout;
 public import dsnapshot.types;
 
 @safe:
-
-Backend makeBackend(Snapshot s, const dsnapshot.config.Config.Backup backup) {
-    auto rval = s.syncCmd.match!((None a) { return null; },
-            (RsyncConfig a) => new RsyncBackend(a, s.remoteCmd, backup.ignoreRsyncErrorCodes));
-
-    if (rval is null) {
-        logger.infof("No backend specified for %s. Supported are: rsync", s.name);
-        throw new Exception(null);
-    }
-    return rval;
-}
 
 /**
  * Error handling is via exceptions.
@@ -44,7 +34,32 @@ interface Backend {
     void removeDiscarded(const Layout layout);
 
     /// Sync from src to dst.
-    void sync(const Layout layout, const Snapshot snapshot, const string nameOfNewSnapshot);
+    void sync(const Layout layout, const SnapshotConfig snapshot, const string nameOfNewSnapshot);
+
+    /// The flow of data that the backend handles.
+    Flow flow();
+}
+
+Backend makeSyncBackend(SnapshotConfig s) {
+    auto rval = s.syncCmd.match!((None a) { return null; },
+            (RsyncConfig a) => new RsyncBackend(a, s.remoteCmd, null));
+
+    if (rval is null) {
+        logger.infof("No backend specified for %s. Supported are: rsync", s.name);
+        throw new Exception(null);
+    }
+    return rval;
+}
+
+Backend makeSyncBackend(SnapshotConfig s, const dsnapshot.config.Config.Backup backup) {
+    auto rval = s.syncCmd.match!((None a) { return null; },
+            (RsyncConfig a) => new RsyncBackend(a, s.remoteCmd, backup.ignoreRsyncErrorCodes));
+
+    if (rval is null) {
+        logger.infof("No backend specified for %s. Supported are: rsync", s.name);
+        throw new Exception(null);
+    }
+    return rval;
 }
 
 final class RsyncBackend : Backend {
@@ -117,7 +132,8 @@ final class RsyncBackend : Backend {
         }, (FlowLocalToRsync a) { remote(RemoteHost(a.dst.addr, a.dst.path)); });
     }
 
-    override void sync(const Layout layout, const Snapshot snapshot, const string nameOfNewSnapshot) {
+    override void sync(const Layout layout, const SnapshotConfig snapshot,
+            const string nameOfNewSnapshot) {
         import std.algorithm : canFind;
         import std.array : replace, array, empty;
         import std.conv : to;
@@ -284,5 +300,9 @@ final class RsyncBackend : Backend {
 
         if (executeHooks("post_exec", snapshot.hooks.postExec, hookEnv) != 0)
             throw new SnapshotException(SnapshotException.PostExecFailed.init.SnapshotError);
+    }
+
+    Flow flow() {
+        return conf.flow;
     }
 }

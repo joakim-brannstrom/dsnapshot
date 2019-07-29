@@ -1,0 +1,10 @@
+[snapshot.a]
+span.1.nr = 5
+span.1.interval = "5 minutes"
+[snapshot.a.encfs]
+passwd = "smurf"
+config = "%1$s"
+encrypted_path = "%2$s"
+[snapshot.a.rsync]
+src = "src"
+dst = "dst"
