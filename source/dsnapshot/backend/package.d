@@ -7,10 +7,12 @@ module dsnapshot.backend;
 
 import logger = std.experimental.logger;
 import std.algorithm : map, filter;
+import std.datetime : SysTime;
 
-import dsnapshot.process;
 import dsnapshot.config;
 import dsnapshot.exception;
+import dsnapshot.from;
+import dsnapshot.process;
 public import dsnapshot.backend.crypt;
 public import dsnapshot.layout : Layout;
 public import dsnapshot.types;
@@ -35,6 +37,10 @@ interface Backend {
 
     /// Sync from src to dst.
     void sync(const Layout layout, const SnapshotConfig snapshot, const string nameOfNewSnapshot);
+
+    /// Restore dst to src.
+    void restore(const Layout layout, const SnapshotConfig snapshot,
+            const SysTime time, const string restoreTo);
 
     /// The flow of data that the backend handles.
     Flow flow();
@@ -302,7 +308,149 @@ final class RsyncBackend : Backend {
             throw new SnapshotException(SnapshotException.PostExecFailed.init.SnapshotError);
     }
 
+    override void restore(const Layout layout, const SnapshotConfig snapshot,
+            const SysTime time, const string restoreTo) {
+        import std.array : empty;
+        import std.file : exists, mkdirRecurse;
+        import std.path : buildPath;
+        import dsnapshot.console : isInteractiveShell;
+
+        const bestFitSnapshot = layout.bestFitBucket(time);
+        if (bestFitSnapshot.isNull) {
+            logger.error("Unable to find a snapshot to restore for the time ", time);
+            throw new SnapshotException(SnapshotException.RestoreFailed(null,
+                    restoreTo).SnapshotError);
+        }
+
+        string src;
+
+        // TODO: this code is similare to the one in cmdgroup.backup. Consider how
+        // it can be deduplicated. Note, similare not the same.
+        string[] buildOpts() {
+            string[] opts = [conf.cmdRsync];
+            opts ~= conf.restoreArgs.dup;
+
+            if (!conf.rsh.empty)
+                opts ~= ["-e", conf.rsh];
+
+            if (isInteractiveShell)
+                opts ~= conf.progress;
+
+            foreach (a; conf.exclude)
+                opts ~= ["--exclude", a];
+
+            conf.flow.match!((None a) {}, (FlowLocal a) {
+                src = fixRemteHostForRsync((a.dst.value.Path ~ bestFitSnapshot.name.value ~ snapshotData)
+                    .toString);
+            }, (FlowRsyncToLocal a) {
+                src = fixRemteHostForRsync((a.dst.value.Path ~ bestFitSnapshot.name.value ~ snapshotData)
+                    .toString);
+            }, (FlowLocalToRsync a) {
+                src = makeRsyncAddr(a.dst.addr, fixRemteHostForRsync(buildPath(a.dst.path,
+                    bestFitSnapshot.name.value, snapshotData)));
+            });
+
+            opts ~= src;
+            // dst is always on the local machine as specified by the user
+            opts ~= restoreTo;
+            return opts;
+        }
+
+        const opts = buildOpts();
+
+        if (!exists(restoreTo))
+            mkdirRecurse(restoreTo);
+
+        logger.infof("Restoring %s to %s", bestFitSnapshot.name.value, restoreTo);
+
+        if (spawnProcessLog(opts).wait != 0)
+            throw new SnapshotException(SnapshotException.RestoreFailed(src,
+                    restoreTo).SnapshotError);
+
+        if (conf.useFakeRoot) {
+            conf.flow.match!((None a) {}, (FlowLocal a) => fakerootLocalRestore(
+                    a.dst.value.Path ~ bestFitSnapshot.name.value, restoreTo), (FlowRsyncToLocal a) {
+                logger.warning("Restoring permissions to a remote is not supported (yet)");
+            }, (FlowLocalToRsync a) => fakerootRemoteRestore(snapshot.remoteCmd,
+                    a.dst, bestFitSnapshot.name, restoreTo));
+        }
+    }
+
     Flow flow() {
         return conf.flow;
+    }
+}
+
+private:
+
+void fakerootLocalRestore(const Path root, const string restoreTo) {
+    import dsnapshot.stats;
+
+    auto fkdb = fromFakerootEnv(root ~ snapshotFakerootEnv);
+    auto pstats = fromFakeroot(fkdb, root.toString, (root ~ snapshotData).toString);
+    restorePermissions(pstats, Path(restoreTo));
+}
+
+void fakerootRemoteRestore(const RemoteCmd cmd_, const RemoteHost addr,
+        const Name name, const string restoreTo) {
+    import std.array : appender, empty;
+    import std.path : buildPath;
+    import std.string : lineSplitter, strip;
+    import dsnapshot.stats;
+
+    auto cmd = cmd_.match!((const SshRemoteCmd a) {
+        return a.toCmd(RemoteSubCmd.fakerootStats, addr.addr, buildPath(addr.path, name.value));
+    });
+
+    auto res = executeLog(cmd);
+
+    if (res.status != 0) {
+        logger.errorf("Unable to restore permissions to %s from %s", restoreTo,
+                snapshotFakerootEnv);
+        logger.info(res.output);
+        return;
+    }
+
+    auto app = appender!(PathStat[])();
+    foreach (const l; res.output
+            .lineSplitter
+            .map!(a => a.strip)
+            .filter!(a => !a.empty)) {
+        try {
+            app.put(fromPathStat(l));
+        } catch (Exception e) {
+            logger.warning("Error when parsing ", l);
+            logger.info(e.msg);
+        }
+    }
+
+    restorePermissions(app.data, Path(restoreTo));
+}
+
+void restorePermissions(const from.dsnapshot.stats.PathStat[] pstats, const Path root) @trusted {
+    import core.sys.posix.sys.stat : S_IFMT, stat_t, stat, lstat, chmod;
+    import core.sys.posix.unistd : chown, lchown;
+    import std.file : isFile, isDir, isSymlink;
+    import std.string : toStringz;
+
+    foreach (const f; pstats) {
+        const curr = (root ~ f.path).toString;
+        const currz = curr.toStringz;
+
+        if (curr.isFile || curr.isDir) {
+            stat_t st = void;
+            stat(currz, &st);
+            if (st.st_mode != f.mode) {
+                // only set the permissions thus masking out other bits.
+                chmod(currz, cast(uint) f.mode & ~S_IFMT);
+            }
+            if (st.st_uid != f.uid || st.st_gid != f.gid)
+                chown(currz, cast(uint) f.uid, cast(uint) f.gid);
+        } else if (curr.isSymlink) {
+            stat_t st = void;
+            lstat(currz, &st);
+            if (st.st_uid != f.uid || st.st_gid != f.gid)
+                lchown(currz, cast(uint) f.uid, cast(uint) f.gid);
+        }
     }
 }
