@@ -89,8 +89,7 @@ struct Name {
     string value;
 }
 
-//TODO: rename to SnapshotConfig
-struct Snapshot {
+struct SnapshotConfig {
     import dsnapshot.layout : Layout;
 
     /// Name of this snapshot
@@ -98,18 +97,37 @@ struct Snapshot {
 
     SyncCmd syncCmd;
 
+    // TODO: change to a generic "execute commmand".
     /// How to interact with the destination for e.g. list snapshots.
     RemoteCmd remoteCmd;
 
     /// The snapshot layout to use.
     Layout layout;
 
+    /// Hooks to run when taking a new snapshot.
     Hooks hooks;
+
+    /// Crypt config.
+    CryptConfig crypt;
 }
 
 struct Hooks {
     string[] preExec;
     string[] postExec;
+}
+
+alias CryptConfig = SumType!(None, EncFsConfig);
+
+struct EncFsConfig {
+    /// The xml config for encfs
+    string configFile;
+    /// Where the encrypted encfs is. The SyncCmd, via Flow, determines where it is mounted.
+    string encryptedPath;
+    string passwd;
+    string[] mountCmd = ["encfs", "-i", "1"];
+    string[] mountFuseOpts;
+    string[] unmountCmd = ["encfs", "-u"];
+    string[] unmountFuseOpts;
 }
 
 alias RemoteCmd = SumType!(SshRemoteCmd);

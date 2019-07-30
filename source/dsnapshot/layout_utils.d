@@ -21,7 +21,7 @@ version (unittest) {
 
 @safe:
 
-Layout fillLayout(Layout layout_, Flow flow, const RemoteCmd cmd) {
+Layout fillLayout(const Layout layout_, const Flow flow, const RemoteCmd cmd) {
     import std.algorithm : filter, map, sort;
     import std.array : array;
     import std.conv : to;
@@ -30,7 +30,7 @@ Layout fillLayout(Layout layout_, Flow flow, const RemoteCmd cmd) {
     import std.path : baseName;
     import dsnapshot.layout : LSnapshot = Snapshot;
 
-    auto rval = layout_;
+    Layout rval = layout_.dup;
 
     const names = flow.match!((None a) => null,
             (FlowRsyncToLocal a) => snapshotNamesFromDir(a.dst.value.Path),

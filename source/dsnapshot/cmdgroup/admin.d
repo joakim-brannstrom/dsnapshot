@@ -11,6 +11,7 @@ import std.array : empty, array;
 import std.exception : collectException;
 import std.stdio : writeln;
 
+import dsnapshot.backend;
 import dsnapshot.config : Config;
 import dsnapshot.exception;
 import dsnapshot.process;
@@ -18,7 +19,7 @@ import dsnapshot.types;
 
 @safe:
 
-int cmdAdmin(Snapshot[] snapshots, const Config.Admin conf) nothrow {
+int cmdAdmin(SnapshotConfig[] snapshots, const Config.Admin conf) nothrow {
     auto operateOn = () {
         if (conf.names.empty) {
             return snapshots;
@@ -31,15 +32,20 @@ int cmdAdmin(Snapshot[] snapshots, const Config.Admin conf) nothrow {
     }();
 
     foreach (snapshot; operateOn) {
-        auto flow = snapshot.syncCmd.match!((None a) => None.init.Flow, (RsyncConfig a) => a.flow);
-
         try {
+            auto backend = makeSyncBackend(snapshot);
+
+            auto crypt = makeCrypBackend(snapshot.crypt);
+            open(crypt, backend.flow);
+            scope (exit)
+                crypt.close;
+
             final switch (conf.cmd) with (Config.Admin) {
             case Cmd.list:
-                cmdList(snapshot, flow);
+                cmdList(snapshot, backend.flow);
                 break;
             case Cmd.diskusage:
-                cmdDiskUsage(snapshot, flow);
+                cmdDiskUsage(snapshot, backend.flow);
                 break;
             }
         } catch (SnapshotException e) {
@@ -56,7 +62,7 @@ int cmdAdmin(Snapshot[] snapshots, const Config.Admin conf) nothrow {
 
 private:
 
-void cmdList(Snapshot snapshot, Flow flow) {
+void cmdList(SnapshotConfig snapshot, Flow flow) {
     import dsnapshot.layout_utils;
 
     auto layout = snapshot.syncCmd.match!((None a) => snapshot.layout,
@@ -66,7 +72,7 @@ void cmdList(Snapshot snapshot, Flow flow) {
     writeln(layout);
 }
 
-void cmdDiskUsage(Snapshot snapshot, Flow flow) {
+void cmdDiskUsage(SnapshotConfig snapshot, Flow flow) {
     import dsnapshot.layout;
     import dsnapshot.layout_utils;
 

@@ -36,7 +36,15 @@ class SnapshotException : Exception {
         string src;
         string dst;
         void print() {
-            logger.errorf("Failed to sync from '%s' to '%s'", src, dst);
+            logger.errorf("Failed to sync '%s' to '%s'", src, dst);
+        }
+    }
+
+    static struct RestoreFailed {
+        string src;
+        string dst;
+        void print() {
+            logger.errorf("Failed to restore '%s' to '%s'", src, dst);
         }
     }
 
@@ -53,6 +61,7 @@ class SnapshotException : Exception {
     }
 }
 
-alias SnapshotError = SumType!(SnapshotException.DstIsNotADir, SnapshotException.UnableToAcquireWorkLock,
-        SnapshotException.SyncFailed, SnapshotException.PreExecFailed,
-        SnapshotException.PostExecFailed,);
+alias SnapshotError = SumType!(SnapshotException.DstIsNotADir,
+        SnapshotException.UnableToAcquireWorkLock, SnapshotException.SyncFailed,
+        SnapshotException.PreExecFailed, SnapshotException.PostExecFailed,
+        SnapshotException.RestoreFailed);

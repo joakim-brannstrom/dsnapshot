@@ -14,13 +14,13 @@ version (unittest) {
     import unit_threaded.assertions;
 }
 
-class ProcessException : Throwable {
-    this(int exitCode, string msg = "Process failed") {
-        super(msg);
+class ProcessException : Exception {
+    int exitCode;
+
+    this(int exitCode, string msg = null, string file = __FILE__, int line = __LINE__) @safe pure nothrow {
+        super(msg, file, line);
         this.exitCode = exitCode;
     }
-
-    int exitCode;
 }
 
 auto spawnProcessLog(Args...)(const(string)[] cmd_, auto ref Args args) {
@@ -28,20 +28,21 @@ auto spawnProcessLog(Args...)(const(string)[] cmd_, auto ref Args args) {
     return spawnProcess(cmd_, args);
 }
 
-auto executeLog(Args...)(const(string)[] cmd_, auto ref Args args) {
-    logger.infof("%-(%s %)", cmd_);
-    return execute(cmd_, args);
-}
-
-/** Blocks until finished.
- *
+/**
  * Params:
  * throwOnFailure = if true throws a `ProcessException` when the exit code isn't zero.
  */
-auto blockProcess(Flag!"throwOnFailure" throw_, Args...)(string[] cmd_, auto ref Args args) {
+auto spawnProcessLog(Flag!"throwOnFailure" throw_, Args...)(string[] cmd_, auto ref Args args) {
     logger.infof("%-(%s %)", cmd_);
     auto pid = spawnProcess(cmd_, args);
     return WrapPid!(throw_)(pid);
+}
+
+/** Blocks until finished.
+ */
+auto executeLog(Args...)(const(string)[] cmd_, auto ref Args args) {
+    logger.infof("%-(%s %)", cmd_);
+    return execute(cmd_, args);
 }
 
 struct WrapPid(Flag!"throwOnFailure" throw_) {
@@ -61,5 +62,5 @@ struct WrapPid(Flag!"throwOnFailure" throw_) {
 
 @("shall throw a ProcessException when the process fails")
 unittest {
-    blockProcess!(Yes.throwOnFailure)(["false"]).wait.shouldThrow!(ProcessException);
+    spawnProcessLog!(Yes.throwOnFailure)(["false"]).wait.shouldThrow!(ProcessException);
 }

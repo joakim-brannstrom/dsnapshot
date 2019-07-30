@@ -13,6 +13,8 @@ version (unittest) {
     import unit_threaded.assertions;
 }
 
+@safe:
+
 /// Stats for a dev+inode as it is in a fakeroot environment.
 struct FakerootStat {
     static struct Node {
@@ -200,7 +202,7 @@ unittest {
     p.shouldEqual(PathStat("foo/bar", octal!100664, 1000, 1001, 0));
 }
 
-PathStat[] fromFakeroot(ref FakerootDb db, const string root, const string relRoot) {
+PathStat[] fromFakeroot(ref FakerootDb db, const string root, const string relRoot) @trusted {
     import std.algorithm : filter;
     import std.array : array;
     import std.file : dirEntries, SpanMode;
@@ -219,7 +221,7 @@ PathStat[] fromFakeroot(ref FakerootDb db, const string root, const string relRo
     return rval.byValue.array;
 }
 
-FakerootDb fromFakerootEnv(const Path p) {
+FakerootDb fromFakerootEnv(const Path p) @trusted {
     import std.stdio : File;
 
     FakerootDb fkdb;

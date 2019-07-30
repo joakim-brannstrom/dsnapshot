@@ -243,7 +243,7 @@ void loadConfig(ref Config conf) @trusted {
 
     tables["snapshot"] = (ref Config c, ref TOMLValue snapshots) {
         foreach (name, data; snapshots) {
-            Snapshot s;
+            SnapshotConfig s;
             s.name = name;
             s.layout = makeDefaultLayout;
             foreach (k, v; data) {
@@ -252,6 +252,9 @@ void loadConfig(ref Config conf) @trusted {
                     case "rsync":
                         auto rsync = parseRsync(v, name);
                         s.syncCmd = rsync;
+                        break;
+                    case "encfs":
+                        s.crypt = parseEncfs(v, name);
                         break;
                     case "pre_exec":
                         s.hooks.preExec = v.array.map!(a => a.str).array;
@@ -461,7 +464,51 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
     } else if (srcAddr.empty && !dstAddr.empty) {
         rval.flow = FlowLocalToRsync(LocalAddr(src), RemoteHost(dstAddr, dst));
     } else {
-        logger.warning("The combination of src, src_addr, dst and dst_addr is not supported. It either has to be local->local, local->remote, remote->local");
+        logger.warning("The combination of src, src_addr, dst and dst_addr is not supported. It either has to be local->local, local->remote or remote->local");
+    }
+
+    return rval;
+}
+
+auto parseEncfs(ref TOMLValue tv, const string parent) @trusted {
+    import std.algorithm : map;
+    import std.array : array, empty;
+    import std.format : format;
+    import dsnapshot.types;
+
+    EncFsConfig rval;
+
+    foreach (key, data; tv) {
+        switch (key) {
+        case "config":
+            rval.configFile = data.str;
+            break;
+        case "encrypted_path":
+            rval.encryptedPath = data.str;
+            break;
+        case "passwd":
+            rval.passwd = data.str;
+            break;
+        case "mount_cmd":
+            rval.mountCmd = data.array.map!(a => a.str).array;
+            break;
+        case "mount_fuse_opts":
+            rval.mountFuseOpts = data.array.map!(a => a.str).array;
+            break;
+        case "unmount_cmd":
+            rval.unmountCmd = data.array.map!(a => a.str).array;
+            break;
+        case "unmount_fuse_opts":
+            rval.unmountFuseOpts = data.array.map!(a => a.str).array;
+            break;
+        default:
+            logger.infof("Unknown option '%s' in section 'snapshot.%s.encfs' in configuration",
+                    key, parent);
+        }
+    }
+
+    if (rval.encryptedPath.empty) {
+        logger.error("No 'encrypted_path' specified for ", parent);
     }
 
     return rval;

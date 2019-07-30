@@ -7,25 +7,18 @@ module dsnapshot.backend;
 
 import logger = std.experimental.logger;
 import std.algorithm : map, filter;
+import std.datetime : SysTime;
 
-import dsnapshot.process;
+import dsnapshot.backend.crypt;
+import dsnapshot.backend.rsync;
 import dsnapshot.config;
 import dsnapshot.exception;
+import dsnapshot.from;
+import dsnapshot.process;
 public import dsnapshot.layout : Layout;
 public import dsnapshot.types;
 
 @safe:
-
-Backend makeBackend(Snapshot s, const dsnapshot.config.Config.Backup backup) {
-    auto rval = s.syncCmd.match!((None a) { return null; },
-            (RsyncConfig a) => new RsyncBackend(a, s.remoteCmd, backup.ignoreRsyncErrorCodes));
-
-    if (rval is null) {
-        logger.infof("No backend specified for %s. Supported are: rsync", s.name);
-        throw new Exception(null);
-    }
-    return rval;
-}
 
 /**
  * Error handling is via exceptions.
@@ -44,245 +37,105 @@ interface Backend {
     void removeDiscarded(const Layout layout);
 
     /// Sync from src to dst.
-    void sync(const Layout layout, const Snapshot snapshot, const string nameOfNewSnapshot);
+    void sync(const Layout layout, const SnapshotConfig snapshot, const string nameOfNewSnapshot);
+
+    /// Restore dst to src.
+    void restore(const Layout layout, const SnapshotConfig snapshot,
+            const SysTime time, const string restoreTo);
+
+    /// The flow of data that the backend handles.
+    Flow flow();
 }
 
-final class RsyncBackend : Backend {
-    RsyncConfig conf;
-    RemoteCmd remoteCmd_;
-    /// Error codes ignored when Synchronizing.
-    const(int)[] ignoreRsyncErrorCodes;
+Backend makeSyncBackend(SnapshotConfig s) {
+    auto rval = s.syncCmd.match!((None a) { return null; },
+            (RsyncConfig a) => new RsyncBackend(a, s.remoteCmd, null));
 
-    this(RsyncConfig conf, RemoteCmd remoteCmd, const(int)[] ignoreRsyncErrorCodes) {
-        this.conf = conf;
-        this.remoteCmd_ = remoteCmd;
-        this.ignoreRsyncErrorCodes = ignoreRsyncErrorCodes;
+    if (rval is null) {
+        logger.infof("No backend specified for %s. Supported are: rsync", s.name);
+        throw new Exception(null);
+    }
+    return rval;
+}
+
+Backend makeSyncBackend(SnapshotConfig s, const dsnapshot.config.Config.Backup backup) {
+    auto rval = s.syncCmd.match!((None a) { return null; },
+            (RsyncConfig a) => new RsyncBackend(a, s.remoteCmd, backup.ignoreRsyncErrorCodes));
+
+    if (rval is null) {
+        logger.infof("No backend specified for %s. Supported are: rsync", s.name);
+        throw new Exception(null);
+    }
+    return rval;
+}
+
+/**
+ */
+class CryptException : Exception {
+    enum Kind {
+        generic,
+        wrongPassword,
+        errorWhenOpening,
+        errorWhenClosing,
+        noEncryptedSrc,
     }
 
-    override void remoteCmd(const RemoteHost host, const RemoteSubCmd cmd_, const string path) {
-        import std.path : buildPath;
+    Kind kind;
 
-        auto cmd = remoteCmd_.match!((SshRemoteCmd a) {
-            return a.toCmd(cmd_, host.addr, buildPath(host.path, path));
-        });
-
-        // TODO: throw exception on failure?
-        spawnProcessLog(cmd).wait;
+    this(string msg, Kind kind = Kind.generic, string file = __FILE__, int line = __LINE__) @safe pure nothrow {
+        super(msg, file, line);
+        this.kind = kind;
     }
+}
 
-    override Layout update(Layout layout) {
-        import dsnapshot.layout_utils;
+/** Encryption of the snapshot destination.
+ *
+ * One backend only hold at most one target open at a time.
+ *
+ * Exceptions are used to signal errors.
+ *
+ * The API excepts this call sequence:
+ * One open followed by multiple close.
+ * or
+ * failed open followed by close.
+ */
+interface CryptBackend {
+    /** Open the encrypted destination.
+     *
+     * Params:
+     * decrypted = where to make the decrypted data visible (mount it).
+     */
+    void open(const string decrypted);
 
-        return fillLayout(layout, conf.flow, remoteCmd_);
-    }
+    /// Close the encrypted destination.
+    void close();
 
-    override void publishSnapshot(const string newSnapshot) {
-        static import dsnapshot.cmdgroup.remote;
+    /// If the crypto backend supports hard links and thus --link-dest with e.g. rsync works.
+    bool supportHardLinks();
 
-        conf.flow.match!((None a) {}, (FlowLocal a) {
-            dsnapshot.cmdgroup.remote.publishSnapshot((a.dst.value.Path ~ newSnapshot).toString);
-        }, (FlowRsyncToLocal a) {
-            dsnapshot.cmdgroup.remote.publishSnapshot((a.dst.value.Path ~ newSnapshot).toString);
-        }, (FlowLocalToRsync a) {
-            this.remoteCmd(RemoteHost(a.dst.addr, a.dst.path),
-                RemoteSubCmd.publishSnapshot, newSnapshot);
-        });
-    }
+    /// If the crypto backend supports that the encrypted data is on a remote host.
+    bool supportRemoteEncryption();
+}
 
-    override void removeDiscarded(const Layout layout) {
-        void local(const LocalAddr local) @safe {
-            import std.file : rmdirRecurse, exists, isDir;
+// TODO: root and mountPoint is probably not "generic" but until another crypt backend is added this will have to do.
+CryptBackend makeCrypBackend(const CryptConfig c) {
+    return c.match!((const None a) => cast(CryptBackend) new PlainText,
+            (const EncFsConfig a) => new EncFs(a.configFile, a.passwd, a.encryptedPath,
+                a.mountCmd, a.mountFuseOpts, a.unmountCmd, a.unmountFuseOpts));
+}
 
-            foreach (const old; layout.discarded
-                    .map!(a => (local.value.Path ~ a.name.value).toString)
-                    .filter!(a => exists(a) && a.isDir)) {
-                logger.info("Removing old snapshot ", old);
-                try {
-                    () @trusted { rmdirRecurse(old); }();
-                } catch (Exception e) {
-                    logger.warning(e.msg);
-                }
-            }
-        }
-
-        void remote(const RemoteHost host) @safe {
-            foreach (const name; layout.discarded.map!(a => a.name)) {
-                logger.info("Removing old snapshot ", name.value);
-                this.remoteCmd(host, RemoteSubCmd.rmdirRecurse, name.value);
-            }
-        }
-
-        conf.flow.match!((None a) {}, (FlowLocal a) { local(a.dst); }, (FlowRsyncToLocal a) {
-            local(a.dst);
-        }, (FlowLocalToRsync a) { remote(RemoteHost(a.dst.addr, a.dst.path)); });
-    }
-
-    override void sync(const Layout layout, const Snapshot snapshot, const string nameOfNewSnapshot) {
-        import std.algorithm : canFind;
-        import std.array : replace, array, empty;
-        import std.conv : to;
-        import std.file : remove, exists, mkdirRecurse;
-        import std.format : format;
-        import std.path : buildPath, setExtension;
-        import std.process : spawnShell;
-        import std.stdio : stdin, File;
-        import dsnapshot.console;
-
-        // this ensure that dsnapshot is only executed when there are actual work
-        // to do. If multiple snapshots are taken close to each other in time then
-        // it means that the "last" one of them is actually the only one that is
-        // kept because it is closest to the bucket.
-        if (!layout.isFirstBucketEmpty) {
-            logger.infof("No new snapshot taken because one where recently taken");
-            auto first = layout.snapshotTimeInBucket(0);
-            if (!first.isNull) {
-                logger.infof("Latest snapshot taken at %s. Next snapshot will be taken in %s",
-                        first.get, first.get - layout.times[0].begin);
-            }
-            return;
-        }
-
-        static void setupLocalDest(const Path p) @safe {
-            auto dst = p ~ snapshotData;
-            if (!exists(dst.toString))
-                mkdirRecurse(dst.toString);
-        }
-
-        static void setupRemoteDest(const RemoteCmd remoteCmd,
-                const RemoteHost addr, const string newSnapshot) @safe {
-            string[] cmd = remoteCmd.match!((const SshRemoteCmd a) {
-                return a.toCmd(RemoteSubCmd.mkdirRecurse, addr.addr,
-                    buildPath(addr.path, newSnapshot, snapshotData));
-            });
-            if (!cmd.empty) {
-                spawnProcessLog(cmd).wait;
-            }
-        }
-
-        static int executeHooks(const string msg, const string[] hooks, const string[string] env) @safe {
-            foreach (s; hooks) {
-                logger.info(msg, ": ", s);
-                if (spawnShell(s, env).wait != 0)
-                    return 1;
-            }
-            return 0;
-        }
-
-        string src, dst;
-
-        string[] buildOpts() @safe {
-            string[] opts = [conf.cmdRsync];
-            opts ~= conf.backupArgs.dup;
-
-            const latest = layout.firstFullBucket;
-
-            if (!conf.rsh.empty)
-                opts ~= ["-e", conf.rsh];
-
-            if (isInteractiveShell)
-                opts ~= conf.progress;
-
-            if (conf.oneFs && !latest.isNull)
-                opts ~= ["-x"];
-
-            if (conf.useLinkDest && !latest.isNull) {
-                conf.flow.match!((None a) {}, (FlowLocal a) {
-                    opts ~= [
-                        "--link-dest",
-                        (a.dst.value.Path ~ latest.get.name.value ~ snapshotData).toString
-                    ];
-                }, (FlowRsyncToLocal a) {
-                    opts ~= [
-                        "--link-dest",
-                        (a.dst.value.Path ~ latest.get.name.value ~ snapshotData).toString
-                    ];
-                }, (FlowLocalToRsync a) {
-                    // from the rsync documentation:
-                    // If DIR is a relative path, it is relative to the destination directory.
-                    opts ~= [
-                        "--link-dest",
-                        buildPath("..", "..", latest.get.name.value, snapshotData)
-                    ];
-                });
-            }
-
-            foreach (a; conf.exclude)
-                opts ~= ["--exclude", a];
-
-            if (conf.useFakeRoot) {
-                conf.flow.match!((None a) {}, (FlowLocal a) {
-                    opts = conf.fakerootArgs.map!(b => b.replace(snapshotFakerootSaveEnvId,
-                        (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotFakerootEnv).toString)).array
-                        ~ opts;
-                }, (FlowRsyncToLocal a) {
-                    opts = conf.fakerootArgs.map!(b => b.replace(snapshotFakerootSaveEnvId,
-                        (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotFakerootEnv).toString)).array
-                        ~ opts;
-                }, (FlowLocalToRsync a) {
-                    opts ~= conf.rsyncFakerootArgs;
-                    opts ~= format!"%-(%s %) %s"(conf.fakerootArgs.map!(b => b.replace(snapshotFakerootSaveEnvId,
-                        buildPath(a.dst.path, nameOfNewSnapshot, snapshotFakerootEnv))),
-                        conf.cmdRsync);
-                });
-            }
-
-            conf.flow.match!((None a) {}, (FlowLocal a) {
-                src = fixRemteHostForRsync(a.src.value);
-                dst = (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotData).toString;
-                opts ~= [src, dst];
-            }, (FlowRsyncToLocal a) {
-                src = fixRemteHostForRsync(makeRsyncAddr(a.src.addr, a.src.path));
-                dst = (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotData).toString;
-                opts ~= [src, dst];
-            }, (FlowLocalToRsync a) {
-                src = fixRemteHostForRsync(a.src.value);
-                dst = makeRsyncAddr(a.dst.addr, buildPath(a.dst.path,
-                    nameOfNewSnapshot, snapshotData));
-                opts ~= [src, dst];
-            });
-
-            return opts;
-        }
-
-        auto opts = buildOpts();
-
-        if (src.empty || dst.empty) {
-            logger.info("source or destination is not configured. Nothing to do.");
-            return;
-        }
-
-        // Configure local destination
-        conf.flow.match!((None a) {}, (FlowLocal a) => setupLocalDest(a.dst.value.Path ~ nameOfNewSnapshot),
-                (FlowRsyncToLocal a) => setupLocalDest(a.dst.value.Path ~ nameOfNewSnapshot),
-                (FlowLocalToRsync a) => setupRemoteDest(remoteCmd_, a.dst, nameOfNewSnapshot));
-
-        logger.infof("Synchronizing '%s' to '%s'", src, dst);
-
-        string[string] hookEnv = ["DSNAPSHOT_SRC" : src, "DSNAPSHOT_DST" : dst];
-
-        if (executeHooks("pre_exec", snapshot.hooks.preExec, hookEnv) != 0)
-            throw new SnapshotException(SnapshotException.PreExecFailed.init.SnapshotError);
-
-        auto syncPid = spawnProcessLog(opts);
-
-        if (conf.lowPrio) {
-            try {
-                logger.infof("Changing IO and CPU priority to low (pid %s)", syncPid.processID);
-                executeLog([
-                        "ionice", "-c", "3", "-p", syncPid.processID.to!string
-                        ]);
-                executeLog(["renice", "+12", "-p", syncPid.processID.to!string]);
-            } catch (Exception e) {
-                logger.info(e.msg);
-            }
-        }
-
-        auto syncPidExit = syncPid.wait;
-        logger.trace("rsync exit code: ", syncPidExit);
-        if (syncPidExit != 0 && !canFind(ignoreRsyncErrorCodes, syncPidExit))
-            throw new SnapshotException(SnapshotException.SyncFailed(src, dst).SnapshotError);
-
-        if (executeHooks("post_exec", snapshot.hooks.postExec, hookEnv) != 0)
-            throw new SnapshotException(SnapshotException.PostExecFailed.init.SnapshotError);
-    }
+/** Open the destination that flow point to.
+ *
+ * Throws an exception if the destination is not local.
+ */
+void open(CryptBackend be, const Flow flow) {
+    flow.match!((None a) {}, (FlowLocal a) { be.open(a.dst.value); }, (FlowRsyncToLocal a) {
+        be.open(a.dst.value);
+    }, (FlowLocalToRsync a) {
+        if (be.supportRemoteEncryption)
+            be.open(null); // TODO for now not implemented
+        else
+            throw new CryptException("Opening an encryption on a remote host is not supported",
+                CryptException.Kind.errorWhenOpening);
+    });
 }

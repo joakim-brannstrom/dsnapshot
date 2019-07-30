@@ -18,7 +18,7 @@ unittest {
 @("shall snapshot local data to dest when executed backup")
 unittest {
     auto ta = makeTestArea;
-    ta.writeConfigFromTemplate(inTestData("test_local.toml"), ta.sandboxPath);
+    ta.writeConfigFromTemplate(inTestData("test_local.toml"));
     ta.writeDummyData("some data");
 
     ta.execDs("backup").status.shouldEqual(0);
@@ -235,4 +235,34 @@ unittest {
         found.length.shouldEqual(1);
         found[0].getAttributes.shouldEqual(octal!100600);
     }
+}
+
+@("shall sync to a crypto backend")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local_encfs.toml"),
+            inTestData("test_local_encfs.xml"), ta.inSandboxPath("encfs"));
+    ta.writeDummyData("some data");
+    mkdirRecurse(ta.inSandboxPath("encfs"));
+    mkdirRecurse(ta.inSandboxPath("dst"));
+
+    ta.execDs("backup").status.shouldEqual(0);
+
+    // should be closed
+    dirEntries(ta.inSandboxPath("dst"), SpanMode.depth).count.shouldEqual(0);
+    // three files because it should be the snapshot with a date, the
+    dirEntries(ta.inSandboxPath("encfs"), SpanMode.depth).count.shouldEqual(3);
+
+    // opening to inspect the content
+    spawnProcess([
+            "encfs", "-i", "1", "-c", inTestData("test_local_encfs.xml"),
+            "--extpass", "echo smurf", ta.inSandboxPath("encfs"),
+            ta.inSandboxPath("dst")
+            ]).wait;
+    scope (exit)
+        execute(["encfs", "-u", ta.inSandboxPath("dst")]);
+
+    const found = ta.findFile("dst", "file.txt");
+    found.length.shouldEqual(1);
+    readText(found[0]).shouldEqual("some data");
 }

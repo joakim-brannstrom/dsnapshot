@@ -25,7 +25,7 @@ version (unittest) {
     import unit_threaded.assertions;
 }
 
-int cmdBackup(Config.Global global, Config.Backup backup, Snapshot[] snapshots) {
+int cmdBackup(Config.Global global, Config.Backup backup, SnapshotConfig[] snapshots) {
     int exitStatus;
 
     foreach (s; snapshots.filter!(a => backup.name.value.empty || backup.name.value == a.name)) {
@@ -48,12 +48,17 @@ int cmdBackup(Config.Global global, Config.Backup backup, Snapshot[] snapshots) 
 
 private:
 
-void snapshot(Snapshot snapshot, const Config.Backup conf) {
+void snapshot(SnapshotConfig snapshot, const Config.Backup conf) {
     import std.datetime : Clock;
 
-    auto backend = makeBackend(snapshot, conf);
-    auto layout = backend.update(snapshot.layout);
+    auto backend = makeSyncBackend(snapshot, conf);
 
+    auto crypt = makeCrypBackend(snapshot.crypt);
+    open(crypt, backend.flow);
+    scope (exit)
+        crypt.close;
+
+    auto layout = backend.update(snapshot.layout);
     logger.trace("Updated layout with information from destination: ", layout);
 
     const newSnapshot = () {

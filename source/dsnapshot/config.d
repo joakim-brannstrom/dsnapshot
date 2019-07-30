@@ -81,7 +81,7 @@ struct Config {
     Type data;
 
     Global global;
-    Snapshot[] snapshots;
+    SnapshotConfig[] snapshots;
 
     void printHelp() {
         import std.format : format;
