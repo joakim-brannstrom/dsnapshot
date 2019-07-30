@@ -14,6 +14,9 @@ trigged via e.g. a cron job. Because dsnapshot only keeps a fixed number of
 snapshots, as configured, the amount of disk space used will not continue to
 grow.
 
+The destination, where the snapshots are stored, can be optionally encrypted.
+This is useful when the snapshots are stored in the cloud.
+
 # Getting Started
 
 **dsnapshot** depends on the following software packages:

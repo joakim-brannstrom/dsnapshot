@@ -1,5 +1,5 @@
 name "dsnapshot"
-description "A application usign rsync for rolling backups"
+description "An application usign rsync for rolling backups and encfs for encryption"
 authors "Joakim Brännström"
 copyright "Copyright © 2019, Joakim Brännström"
 license "BSL-1.0"
