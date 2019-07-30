@@ -59,7 +59,6 @@ void snapshot(SnapshotConfig snapshot, const Config.Backup conf) {
         crypt.close;
 
     auto layout = backend.update(snapshot.layout);
-
     logger.trace("Updated layout with information from destination: ", layout);
 
     const newSnapshot = () {
