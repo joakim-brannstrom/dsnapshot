@@ -23,7 +23,7 @@ public import dsnapshot.types;
 /**
  * Error handling is via exceptions.
  */
-interface Backend {
+interface SyncBackend {
     /// Execute a command on the host that is the destination of the snapshots.
     void remoteCmd(const RemoteHost host, const RemoteSubCmd cmd, const string path);
 
@@ -47,7 +47,7 @@ interface Backend {
     Flow flow();
 }
 
-Backend makeSyncBackend(SnapshotConfig s) {
+SyncBackend makeSyncBackend(SnapshotConfig s) {
     auto rval = s.syncCmd.match!((None a) { return null; },
             (RsyncConfig a) => new RsyncBackend(a, s.remoteCmd, null));
 
@@ -58,7 +58,7 @@ Backend makeSyncBackend(SnapshotConfig s) {
     return rval;
 }
 
-Backend makeSyncBackend(SnapshotConfig s, const dsnapshot.config.Config.Backup backup) {
+SyncBackend makeSyncBackend(SnapshotConfig s, const dsnapshot.config.Config.Backup backup) {
     auto rval = s.syncCmd.match!((None a) { return null; },
             (RsyncConfig a) => new RsyncBackend(a, s.remoteCmd, backup.ignoreRsyncErrorCodes));
 

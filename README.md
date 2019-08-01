@@ -221,9 +221,9 @@ rsync_fakeroot_args = ["--rsync-path"]
 ### Configuring encfs for encrypted snapshots
 
 `encfs` can be used to encrypt the snapshots. The configurations parameters for
-encfs is in the encfs group.
+`encfs` is in the encfs group.
 
-The encfs encrypted data (in encfs terms the rootDir). This must be located
+The `encfs` encrypted data (in `encfs` terms the `rootDir`). This must be located
 outside of the destination. Both `dst` and `encrypted_path` must exist before
 running dsnapshot.
 ```toml
@@ -240,9 +240,9 @@ config = "path/to/config.xml"
 ```
 
 The password for opening the encrypted data can be specified in two ways. The
-first one uses `echo` to send the password to encfs when it asks for the
-password. To avoid printing the password in the logs that dsnapshot prodcues it
-is put in the environment variable DSNAPSHOT_ENCFS_PWD. This may be insecure
+first one uses `echo` to send the password to `encfs` when it asks for the
+password. To avoid printing the password in the logs that dsnapshot produces it
+is put in the environment variable `DSNAPSHOT_ENCFS_PWD`. This may be insecure
 for your use case so think about it.
 ```toml
 [snapshot.example.encfs]
@@ -341,7 +341,7 @@ fakeroot to avoid the need for being root on the remote server when backing up
 files owned by root.
 
 The example expects the user `example_backup` to exist on the remote server and
-have a ssh key registered that is used by the local root when transfering and
+have a ssh key registered that is used by the local root when transferring and
 running commands on `dst_addr`.
 
 The example uses the default layout which mean the backups are kept for one

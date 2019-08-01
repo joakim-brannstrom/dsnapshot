@@ -30,6 +30,10 @@ int cmdBackup(Config.Global global, Config.Backup backup, SnapshotConfig[] snaps
 
     foreach (s; snapshots.filter!(a => backup.name.value.empty || backup.name.value == a.name)) {
         int snapshotStatus = 1;
+        logger.info("# Start snapshot ", s.name);
+        scope (exit)
+            logger.info("# Done snapshot ", s.name);
+
         try {
             snapshot(s, backup);
             snapshotStatus = 0;

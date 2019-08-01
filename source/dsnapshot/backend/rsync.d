@@ -21,7 +21,7 @@ import dsnapshot.types;
 
 @safe:
 
-final class RsyncBackend : Backend {
+final class RsyncBackend : SyncBackend {
     RsyncConfig conf;
     RemoteCmd remoteCmd_;
     /// Error codes ignored when Synchronizing.
