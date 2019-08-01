@@ -49,6 +49,8 @@ Layout fillLayout(const Layout layout_, const Flow flow, const RemoteCmd cmd) {
         }
     }
 
+    rval.finalize;
+
     return rval;
 }
 
