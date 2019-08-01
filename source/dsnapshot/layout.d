@@ -154,12 +154,14 @@ unittest {
  *
  * It operates on two passes.
  * The first pass is basically a histogram. It finds the bucket interval that
- * wrap the snapshot. It then checks to see if the candidate is newer than the
- * one currently in the bucket. If so it replaces it. This mean that each
- * bucket contains the latest snapshot that fit it. Snapshots are never
- * discarded at this stage. If a snapshot do not fit in a bucket or is replaced
- * it is moved to a waiting list.
- * */
+ * *contain* the snapshot. It then checks to see if the candidate is newer than
+ * the one currently in the bucket. If so it replaces it. This mean that each
+ * bucket contains the latest snapshot that fit it. If a snapshot do not fit in
+ * a bucket or is replaced it is moved to the discarded list.
+ *
+ * The second pass goes through those that has been marked for discard and see
+ * if any of them fit *well enough* into the buckets that are empty.
+ */
 struct Layout {
     import sumtype;
 
@@ -287,6 +289,42 @@ struct Layout {
         });
     }
 
+    void finalize() {
+        if (buckets.empty || discarded.empty)
+            return;
+
+        auto candidates = discarded;
+        discarded = null;
+
+        // find what bucket the candidate fit in (bucket n).
+        // Put it in the bucket after it (bucket n+1), if n+1 is empty.
+        // Assume that this only need to handle the cases when a snapshot is
+        // about to expire from its current bucket.
+        // Assume that there are usually not multiple snapshots for a bucket
+        // that exhibit this behavior.
+        while (!candidates.empty) {
+            auto s = candidates[$ - 1];
+            candidates = candidates[0 .. $ - 1];
+
+            const fitIdx = bestFitInterval(s.time, times);
+            if (fitIdx.isNull) {
+                discarded ~= s;
+                continue;
+            }
+
+            const idx = fitIdx.get + 1;
+            if (idx > buckets.length) {
+                discarded ~= s;
+                continue;
+            }
+
+            buckets[idx].value = buckets[idx].value.match!((Empty a) => s, (Snapshot a) {
+                discarded ~= s;
+                return a;
+            });
+        }
+    }
+
     import std.range : isOutputRange;
 
     string toString() @safe const {
@@ -359,4 +397,27 @@ unittest {
     (base - layout.times[9].begin).total!"hours".shouldEqual(4 * 5 + 24 * 5);
     (base - layout.times[10].begin).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7);
     (base - layout.times[14].begin).total!"hours".shouldEqual(4 * 5 + 24 * 5 + 24 * 7 * 5);
+}
+
+@("shall move the about to expire snapshot from its current bucket to bucket n+1")
+unittest {
+    import std.conv : to;
+    import std.range : iota;
+
+    const base = Clock.currTime;
+
+    auto conf = LayoutConfig([Span(5, 4.dur!"hours")]);
+    auto layout = Layout(base, conf);
+
+    // init bucket 0
+    layout.put(Snapshot(base - 3.dur!"hours", "bucket 1".Name));
+    // replace bucket 0 with a better candidate
+    layout.put(Snapshot(base - 1.dur!"hours", "bucket 0".Name));
+
+    logger.info(layout);
+    layout.finalize;
+    logger.info(layout);
+
+    (base - layout.snapshotTimeInBucket(0)).total!"hours".shouldEqual(1);
+    (base - layout.snapshotTimeInBucket(1)).total!"hours".shouldEqual(3);
 }
