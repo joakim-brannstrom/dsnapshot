@@ -18,6 +18,7 @@ struct Config {
     static import std.getopt;
 
     struct Help {
+        std.getopt.GetoptResult helpInfo;
     }
 
     struct Backup {
@@ -65,6 +66,7 @@ struct Config {
     }
 
     struct Verifyconfig {
+        std.getopt.GetoptResult helpInfo;
     }
 
     struct Global {
@@ -72,8 +74,7 @@ struct Config {
         Path confFile;
 
         VerboseMode verbosity;
-        bool help;
-        std.getopt.GetoptResult helpInfo;
+        bool help = true;
         string progName;
     }
 
@@ -89,20 +90,37 @@ struct Config {
         import std.path : baseName;
         import std.string : toLower;
 
-        defaultGetoptPrinter(format("usage: %s <command>\n", global.progName),
-                global.helpInfo.options);
-        writeln("Command groups:");
-        static foreach (T; Type.AllowedTypes) {
-            writeln("  ", T.stringof.toLower);
+        static void printGroup(std.getopt.GetoptResult helpInfo, string progName, string name) {
+            defaultGetoptPrinter(format("usage: %s %s <options>\n", progName,
+                    name), helpInfo.options);
         }
 
-        data.visit!((Help a) {}, (Backup a) {
-            defaultGetoptPrinter("backup:", a.helpInfo.options);
-        }, (Remotecmd a) {
-            defaultGetoptPrinter("remotecmd:", a.helpInfo.options);
-        }, (Restore a) { defaultGetoptPrinter("restore:", a.helpInfo.options); }, (Verifyconfig a) {
-            writeln("verifyconfig:");
+        static void printHelpGroup(std.getopt.GetoptResult helpInfo, string progName) {
+            defaultGetoptPrinter(format("usage: %s <command>\n", progName), helpInfo.options);
+            writeln("Command groups:");
+            static foreach (T; Type.AllowedTypes) {
+                writeln("  ", T.stringof.toLower);
+            }
+        }
+
+        import std.meta : AliasSeq;
+
+        template printers(T...) {
+            static if (T.length == 1) {
+                static if (is(T[0] == Config.Help))
+                    alias printers = (T[0] a) => printHelpGroup(a.helpInfo, global.progName);
+                else
+                    alias printers = (T[0] a) => printGroup(a.helpInfo,
+                            global.progName, T[0].stringof.toLower);
+            } else {
+                alias printers = AliasSeq!(printers!(T[0]), printers!(T[1 .. $]));
+            }
+        }
+
+        data.visit!(printers!(Type.AllowedTypes));
+
+        if (data.type == typeid(Verifyconfig)) {
             writeln("Verify the configuration file without actually executing it");
-        }, (Admin a) { defaultGetoptPrinter("admin:", a.helpInfo.options); },);
+        }
     }
 }

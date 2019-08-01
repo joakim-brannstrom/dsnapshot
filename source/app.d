@@ -6,8 +6,8 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 module app;
 
 import logger = std.experimental.logger;
-import std.algorithm : remove, map;
-import std.array : array;
+import std.algorithm : remove, map, filter;
+import std.array : array, empty;
 import std.exception : collectException;
 import std.path : baseName, expandTilde;
 import std.stdio : writeln;
@@ -91,15 +91,23 @@ Config parseUserArgs(string[] args) @trusted {
     }
 
     try {
-        string confFile;
-
         void globalParse() {
+            Config.Help data;
+            scope (success)
+                conf.data = data;
+
+            string confFile;
             // dfmt off
-            conf.global.helpInfo = std.getopt.getopt(args, std.getopt.config.passThrough,
+            data.helpInfo = std.getopt.getopt(args, std.getopt.config.passThrough,
                 "v|verbose", format("Set the verbosity (%-(%s, %))", [EnumMembers!(VerboseMode)]), &conf.global.verbosity,
                 "c|config", "Config file to read", &confFile,
                 );
             // dfmt on
+            conf.global.help = data.helpInfo.helpWanted;
+            args ~= (conf.global.help ? "-h" : null);
+
+            if (!confFile.empty)
+                conf.global.confFile = confFile.Path;
         }
 
         void backupParse() {
@@ -180,20 +188,15 @@ Config parseUserArgs(string[] args) @trusted {
         alias ParseFn = void delegate();
         ParseFn[string] parsers;
 
-        if (confFile.length != 0)
-            conf.global.confFile = confFile.Path;
-
-        globalParse;
-
         static foreach (T; Config.Type.AllowedTypes) {
             static if (!is(T == Config.Help))
                 mixin(format(`parsers["%1$s"] = &%1$sParse;`, T.stringof.toLower));
         }
 
-        conf.global.help = true;
+        globalParse;
+
         if (auto p = group in parsers) {
             (*p)();
-            conf.global.help = conf.global.helpInfo.helpWanted;
         }
     } catch (std.getopt.GetOptException e) {
         // unknown option
@@ -208,8 +211,6 @@ Config parseUserArgs(string[] args) @trusted {
 }
 
 void loadConfig(ref Config conf) @trusted {
-    import std.algorithm : filter, map;
-    import std.array : array;
     import std.conv : to;
     import std.file : exists, readText, isFile;
     import std.path : dirName, buildPath;
@@ -306,8 +307,7 @@ void loadConfig(ref Config conf) @trusted {
 import toml : TOMLValue;
 
 auto parseLayout(ref TOMLValue tv) @trusted {
-    import std.algorithm : sort, map;
-    import std.array : array;
+    import std.algorithm : sort;
     import std.conv : to;
     import std.datetime : Duration, dur, Clock;
     import std.range : chunks;
@@ -387,8 +387,6 @@ auto parseLayout(ref TOMLValue tv) @trusted {
 }
 
 auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
-    import std.algorithm : map;
-    import std.array : array, empty;
     import std.format : format;
     import dsnapshot.types;
 
@@ -471,8 +469,6 @@ auto parseRsync(ref TOMLValue tv, const string parent) @trusted {
 }
 
 auto parseEncfs(ref TOMLValue tv, const string parent) @trusted {
-    import std.algorithm : map;
-    import std.array : array, empty;
     import std.format : format;
     import dsnapshot.types;
 
