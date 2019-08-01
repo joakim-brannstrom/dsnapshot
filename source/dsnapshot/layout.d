@@ -273,7 +273,7 @@ struct Layout {
         }
 
         const bucketTime = times[fitIdx];
-        buckets[fitIdx].value = buckets[fitIdx].value.match!((Empty a) => s, (Snapshot a) {
+        auto tmp = cast() buckets[fitIdx.get].value.match!((Empty a) => s, (Snapshot a) {
             // Replace the snapshot in the bucket if the new one `s` is a better fit.
             // Using `.end` on the assumption that the latest snapshot for
             // each bucket is the most interesting. This also mean that when a
@@ -287,6 +287,8 @@ struct Layout {
             discarded ~= s;
             return a;
         });
+
+        () @trusted { buckets[fitIdx.get].value = tmp; }();
     }
 
     void finalize() {
@@ -318,10 +320,12 @@ struct Layout {
                 continue;
             }
 
-            buckets[idx].value = buckets[idx].value.match!((Empty a) => s, (Snapshot a) {
+            auto tmp = buckets[idx].value.match!((Empty a) => s, (Snapshot a) {
                 discarded ~= s;
                 return a;
             });
+
+            () @trusted { buckets[idx].value = tmp; }();
         }
     }
 
