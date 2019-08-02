@@ -516,20 +516,20 @@ auto parseDuration(string timeSpec) {
         return d;
     }
 
+    logger.info(parts);
     foreach (const p; parts.chunks(2)) {
         const nr = p[0].to!long;
-        bool hasInvalidUnit;
+        bool validUnit;
         immutable AllUnites = [
             "msecs", "seconds", "minutes", "hours", "days", "weeks"
         ];
         static foreach (Unit; AllUnites) {
             if (p[1] == Unit) {
                 d += nr.dur!Unit;
-            } else {
-                hasInvalidUnit = true;
+                validUnit = true;
             }
         }
-        if (hasInvalidUnit) {
+        if (!validUnit) {
             logger.warningf("Invalid unit '%s'. Valid are %-(%s, %).", p[1], AllUnites);
             return d;
         }
