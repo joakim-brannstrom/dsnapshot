@@ -516,7 +516,6 @@ auto parseDuration(string timeSpec) {
         return d;
     }
 
-    logger.info(parts);
     foreach (const p; parts.chunks(2)) {
         const nr = p[0].to!long;
         bool validUnit;
