@@ -103,20 +103,6 @@ final class RsyncBackend : SyncBackend {
         import std.stdio : stdin, File;
         import dsnapshot.console;
 
-        // this ensure that dsnapshot is only executed when there are actual work
-        // to do. If multiple snapshots are taken close to each other in time then
-        // it means that the "last" one of them is actually the only one that is
-        // kept because it is closest to the bucket.
-        if (!layout.isFirstBucketEmpty) {
-            logger.infof("No new snapshot taken because one where recently taken");
-            auto first = layout.snapshotTimeInBucket(0);
-            if (!first.isNull) {
-                logger.infof("Latest snapshot taken at %s. Next snapshot will be taken in %s",
-                        first.get, first.get - layout.times[0].begin);
-            }
-            return;
-        }
-
         static void setupLocalDest(const Path p) @safe {
             auto dst = p ~ snapshotData;
             if (!exists(dst.toString))

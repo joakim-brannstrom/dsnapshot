@@ -115,13 +115,16 @@ Config parseUserArgs(string[] args) @trusted {
             scope (success)
                 conf.data = data;
 
+            string margin;
             // dfmt off
             data.helpInfo = std.getopt.getopt(args,
                 "ignore-rsync-error-code", "Ignore rsync error code", &data.ignoreRsyncErrorCodes,
                 "resume", "If an interrupted backup should be resumed", &data.resume,
                 "s|snapshot", "The name of the snapshot to backup (default: all)", &data.name.value,
+                "margin", "Add a margin when checking if a new snapshot should be taken", &margin,
                 );
             // dfmt on
+            data.newSnapshotMargin = parseDuration(margin);
         }
 
         void remotecmdParse() {
@@ -309,7 +312,7 @@ import toml : TOMLValue;
 auto parseLayout(ref TOMLValue tv) @trusted {
     import std.algorithm : sort;
     import std.conv : to;
-    import std.datetime : Duration, dur, Clock;
+    import std.datetime : Clock;
     import std.range : chunks;
     import std.string : split;
     import std.typecons : Nullable;
@@ -327,31 +330,7 @@ auto parseLayout(ref TOMLValue tv) @trusted {
             return rval;
         }
 
-        const parts = data[intervalKey].str.split;
-        if (parts.length % 2 != 0) {
-            logger.warning(
-                    "Invalid space specification because either the number or unit is missing");
-            return rval;
-        }
-
-        Duration d;
-        foreach (const p; parts.chunks(2)) {
-            const nr = p[0].to!long;
-            bool validUnit;
-            immutable AllUnites = [
-                "msecs", "seconds", "minutes", "hours", "days", "weeks"
-            ];
-            static foreach (Unit; AllUnites) {
-                if (p[1] == Unit) {
-                    d += nr.dur!Unit;
-                    validUnit = true;
-                }
-            }
-            if (!validUnit) {
-                logger.warningf("Invalid unit '%s'. Valid are %-(%s, %).", p[1], AllUnites);
-                return rval;
-            }
-        }
+        auto d = parseDuration(data[intervalKey].str);
 
         const nr = data[nrKey].integer;
         if (nr <= 0) {
@@ -521,4 +500,40 @@ auto makeDefaultLayout() {
             Span(6, 4.dur!"hours"), Span(6, 1.dur!"days"), Span(3, 1.dur!"weeks")
             ]);
     return Layout(base, conf);
+}
+
+auto parseDuration(string timeSpec) {
+    import std.conv : to;
+    import std.string : split;
+    import std.datetime : Duration, dur;
+    import std.range : chunks;
+
+    Duration d;
+    const parts = timeSpec.split;
+
+    if (parts.length % 2 != 0) {
+        logger.warning("Invalid time specification because either the number or unit is missing");
+        return d;
+    }
+
+    foreach (const p; parts.chunks(2)) {
+        const nr = p[0].to!long;
+        bool hasInvalidUnit;
+        immutable AllUnites = [
+            "msecs", "seconds", "minutes", "hours", "days", "weeks"
+        ];
+        static foreach (Unit; AllUnites) {
+            if (p[1] == Unit) {
+                d += nr.dur!Unit;
+            } else {
+                hasInvalidUnit = true;
+            }
+        }
+        if (hasInvalidUnit) {
+            logger.warningf("Invalid unit '%s'. Valid are %-(%s, %).", p[1], AllUnites);
+            return d;
+        }
+    }
+
+    return d;
 }

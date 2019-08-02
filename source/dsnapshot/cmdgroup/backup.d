@@ -65,6 +65,24 @@ void snapshot(SnapshotConfig snapshot, const Config.Backup conf) {
     auto layout = backend.update(snapshot.layout);
     logger.trace("Updated layout with information from destination: ", layout);
 
+    // this ensure that dsnapshot is only executed when there are actual work
+    // to do. If multiple snapshots are taken close to each other in time then
+    // it means that the "last" one of them is actually the only one that is
+    // kept because it is closest to the bucket.
+    if (!layout.isFirstBucketEmpty) {
+        const first = layout.snapshotTimeInBucket(0);
+        const timeLeft = first.get - layout.times[0].begin;
+        if (timeLeft > conf.newSnapshotMargin) {
+            logger.infof("No new snapshot taken because one where recently taken");
+
+            if (!first.isNull) {
+                logger.infof("Latest snapshot taken at %s. Next snapshot will be taken in %s",
+                        first.get, timeLeft);
+            }
+            return;
+        }
+    }
+
     const newSnapshot = () {
         if (conf.resume && !layout.resume.isNull) {
             return layout.resume.get.name.value;
