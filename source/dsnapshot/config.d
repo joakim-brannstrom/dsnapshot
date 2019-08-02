@@ -13,7 +13,7 @@ import colorlog;
 public import dsnapshot.types;
 
 struct Config {
-    import std.datetime : SysTime;
+    import std.datetime : SysTime, Duration;
     import std.variant : Algebraic, visit;
     static import std.getopt;
 
@@ -26,6 +26,8 @@ struct Config {
         Name name;
         /// If the user wants to resume an interrupted backup.
         bool resume;
+        /// Adjusts the margin used when calculating if a new snapshot should be taken.
+        Duration newSnapshotMargin;
         ///
         int[] ignoreRsyncErrorCodes;
         std.getopt.GetoptResult helpInfo;
