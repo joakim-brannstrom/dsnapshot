@@ -295,38 +295,54 @@ struct Layout {
         if (buckets.empty || discarded.empty)
             return;
 
-        auto candidates = discarded;
-        discarded = null;
+        auto iterate(Snapshot[] candidates) {
+            Snapshot[] spare;
 
-        // find what bucket the candidate fit in (bucket n).
-        // Put it in the bucket after it (bucket n+1), if n+1 is empty.
-        // Assume that this only need to handle the cases when a snapshot is
-        // about to expire from its current bucket.
-        // Assume that there are usually not multiple snapshots for a bucket
-        // that exhibit this behavior.
-        while (!candidates.empty) {
-            auto s = candidates[$ - 1];
-            candidates = candidates[0 .. $ - 1];
+            // find what bucket the candidate fit in (bucket n).
+            // Put it in the bucket after it (bucket n+1), if n+1 is empty or
+            // the new one fit better.
+            // Assume that this only need to handle the cases when a snapshot
+            // is about to expire from its current bucket.
+            while (!candidates.empty) {
+                auto s = candidates[0];
+                candidates = candidates[1 .. $];
 
-            const fitIdx = bestFitInterval(s.time, times);
-            if (fitIdx.isNull) {
-                discarded ~= s;
-                continue;
+                const fitIdx = bestFitInterval(s.time, times);
+                if (fitIdx.isNull) {
+                    discarded ~= s;
+                    continue;
+                }
+
+                const idx = fitIdx.get + 1;
+                if (idx > buckets.length) {
+                    discarded ~= s;
+                    continue;
+                }
+
+                const bucketTime = times[idx];
+                auto tmp = buckets[idx].value.match!((Empty a) => s, (Snapshot a) {
+                    if (fitness(bucketTime.end, s.time) < fitness(bucketTime.end, a.time)) {
+                        spare ~= a;
+                        return s;
+                    }
+                    spare ~= s;
+                    return a;
+                });
+
+                () @trusted { buckets[idx].value = tmp; }();
             }
 
-            const idx = fitIdx.get + 1;
-            if (idx > buckets.length) {
-                discarded ~= s;
-                continue;
-            }
-
-            auto tmp = buckets[idx].value.match!((Empty a) => s, (Snapshot a) {
-                discarded ~= s;
-                return a;
-            });
-
-            () @trusted { buckets[idx].value = tmp; }();
+            return spare;
         }
+
+        // Assume that a cascade effect may happen when a snapshot is replacing
+        // another snapshot in a bucket.
+        Snapshot[] prev;
+        do {
+            prev = discarded;
+            discarded = iterate(discarded);
+        }
+        while (prev != discarded);
     }
 
     import std.range : isOutputRange;
@@ -357,7 +373,7 @@ struct Layout {
         if (discarded.length != 0)
             put(w, "Discarded\n");
         foreach (a; discarded.enumerate)
-            formattedWrite(w, "%s: %s\n", a.index, a.value);
+            formattedWrite(w, "%s: %s name:%s\n", a.index, a.value.time, a.value.name.value);
     }
 }
 
@@ -378,7 +394,7 @@ unittest {
     import std.conv : to;
     import std.range : iota;
 
-    const base = Clock.currTime;
+    const base = Clock.currTime.toUTC;
 
     auto conf = LayoutConfig([
             Span(5, 4.dur!"hours"), Span(5, 1.dur!"days"), Span(5, 7.dur!"days")
@@ -408,20 +424,25 @@ unittest {
     import std.conv : to;
     import std.range : iota;
 
-    const base = Clock.currTime;
+    const base = Clock.currTime.toUTC;
 
     auto conf = LayoutConfig([Span(5, 4.dur!"hours")]);
     auto layout = Layout(base, conf);
 
     // init bucket 0
     layout.put(Snapshot(base - 3.dur!"hours", "bucket 1".Name));
+    layout.put(Snapshot(base - 3.dur!"hours" - 10.dur!"minutes", "bucket 1".Name));
+    layout.put(Snapshot(base - 7.dur!"hours", "bucket 2".Name));
     // replace bucket 0 with a better candidate
     layout.put(Snapshot(base - 1.dur!"hours", "bucket 0".Name));
 
-    logger.info(layout);
     layout.finalize;
-    logger.info(layout);
 
     (base - layout.snapshotTimeInBucket(0)).total!"hours".shouldEqual(1);
+
     (base - layout.snapshotTimeInBucket(1)).total!"hours".shouldEqual(3);
+    // should be the one with -10 minutes.
+    (base - layout.snapshotTimeInBucket(1)).total!"minutes".shouldEqual(190);
+
+    (base - layout.snapshotTimeInBucket(2)).total!"hours".shouldEqual(7);
 }
