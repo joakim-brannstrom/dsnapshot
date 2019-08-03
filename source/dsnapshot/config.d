@@ -71,6 +71,12 @@ struct Config {
         std.getopt.GetoptResult helpInfo;
     }
 
+    struct Watch {
+        /// The name of the snapshot to backup.
+        Name name;
+        std.getopt.GetoptResult helpInfo;
+    }
+
     struct Global {
         /// Configuration file to read
         Path confFile;
@@ -80,7 +86,7 @@ struct Config {
         string progName;
     }
 
-    alias Type = Algebraic!(Help, Backup, Remotecmd, Restore, Verifyconfig, Admin);
+    alias Type = Algebraic!(Help, Backup, Remotecmd, Restore, Verifyconfig, Admin, Watch);
     Type data;
 
     Global global;

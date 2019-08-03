@@ -426,6 +426,13 @@ Administrator commands such as calculating the disk usage.
 Restores the snapshot that closest matches the specified date or if none is
 given the latest.
 
+## watch
+
+dsnapshot watches src for changes. When a change is detected it will queue a
+snapshot to be taken as soon as the configured span allows it. This is useful
+if you want to take a snapshot as soon as the filesystem changes and only if it
+changes.
+
 # Automation
 
 When you have a configuration file that you are happy with you may want to
