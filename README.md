@@ -363,12 +363,15 @@ fakeroot = true
 
 ## Example 6: Encrypt the snapshots
 
-In this example the directories used in encrypted_path, src and dst exists
-before dsnapshot is executed. encfs has been executed with the arguments
-`encfs -f -v ~/backup/example_encfs ~/backup/example` to let it create a
-configuration in `~/backup/example_encfs`.
+In this example the directories used in `encrypted_path`, `src` and `dst`
+exists before dsnapshot is executed. encfs has been executed with the arguments
+```
+encfs -f -v ~/backup/example_encfs ~/backup/example
+```
+to let it create a configuration in `~/backup/example_encfs`.
 
-dsnasphot will then open encrypted_path path at dst before doing anything.
+dsnasphot will then open `encrypted_path` at dst with encfs before doing
+anything.
 
 The end result is that the snapshots that are taken will be encrypted. This is
 useful for storing the snapshots on an untrusted cloud provider.
@@ -377,6 +380,7 @@ useful for storing the snapshots on an untrusted cloud provider.
 [snapshot.example]
 [snapshot.example.encfs]
 passwd = "my pwd"
+# this is where you store it in e.g. your cloud provider
 encrypted_path = "~/backup/example_encfs"
 [snapshot.example.rsync]
 src = "~/example"
