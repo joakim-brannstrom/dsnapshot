@@ -272,7 +272,48 @@ mount_fuse_opts = ["-o", "myopt"]
 unmount_fuse_opts = ["-o", "myopt"]
 ```
 
-## Example 1: Backups kept over a year
+## Example 1: Simple backup on localhost
+
+This is a simple configuration that keeps backups for up to a month.
+
+```toml
+[snapshot.example]
+[snapshot.example.rsync]
+src = "~/example"
+dst = "~/backup/example"
+```
+
+To automate the backups you can put this line in crontab:
+```sh
+0 */4 * * * dsnapshot backup -c my_config.toml --margin "10 minutes"
+```
+
+## Exasmple 2: Backup to a remote host
+
+This puts the backups on the host specified in `dst_addr`. The directory in
+`dst` will be relative to the home directory on `other_host`.
+
+```toml
+[snapshot.example]
+[snapshot.example.rsync]
+src = "~/example"
+dst = "~/backup/example"
+dst_addr = "other_host"
+```
+
+## Example 3: Backup from a remote host
+
+This backups `other_host` to the computer where dsnapshot is executed.
+
+```toml
+[snapshot.example]
+[snapshot.example.rsync]
+src = "~/example"
+src_addr = "other_host"
+dst = "~/backup/example"
+```
+
+## Example 4: Backups kept over a year
 
 This will create create a total span of backups that has a higher frequency the
 first day (4 hours interval) that will turn into one backup per day for a week.
@@ -282,42 +323,18 @@ This is then followed lowered to one per month after that period.
 [snapshot.example]
 span.1.nr = 6
 span.1.interval = "4 hours"
-span.2.nr = 7
+span.2.nr = 6
 span.2.interval = "1 days"
-span.3.nr = 4
-span.3.interval = "7 days"
-span.4.nr = 12
+span.3.nr = 3
+span.3.interval = "1 weeks"
+span.4.nr = 11
 span.4.interval = "30 days"
 [snapshot.example.rsync]
 src = "~/example"
 dst = "~/backup/example"
 ```
 
-## Exasmple 2: Backup to a remote host
-
-```toml
-[snapshot.example]
-span.1.nr = 6
-span.1.interval = "4 hours"
-[snapshot.example.rsync]
-src = "~/example"
-dst = "~/backup/example"
-dst_addr = "other_host"
-```
-
-## Example 3: Backup from a remote host
-
-```toml
-[snapshot.example]
-span.1.nr = 6
-span.1.interval = "4 hours"
-[snapshot.example.rsync]
-src = "~/example"
-src_addr = "other_host"
-dst = "~/backup/example"
-```
-
-## Example 4: Backup a sql dump
+## Example 5: Backup a sql dump
 
 In this example dsnapshot will backup the raw dump of a postgresql database by
 executing a script that dumps the database to a file via the `pre_exec` hook.
@@ -333,7 +350,7 @@ src = "~/my_script_dump"
 dst = "~/backup/my_script_dump"
 ```
 
-## Example 5: Backup `/` to a remote host
+## Example 6: Backup `/` to a remote host
 
 In this example dsnapshot will backup the most relevant files from `/` in order
 to ease a restore of the server. To improve the security dsnapshot uses
@@ -361,7 +378,7 @@ dst_addr = "example_backup@lipwig"
 fakeroot = true
 ```
 
-## Example 6: Encrypt the snapshots
+## Example 7: Encrypt the snapshots
 
 In this example the directories used in `encrypted_path`, `src` and `dst`
 exists before dsnapshot is executed. encfs has been executed with the arguments
@@ -417,7 +434,7 @@ automate the execution of the `backup` command.
 One way of automating is to use the tried and true crontab. Lets say you have
 configured dsnapshots first span to a 4 hours interval and the second is 1 day.
 ```sh
-* */4 * * * dsnapshot backup -c my_config.toml
+0 */4 * * * dsnapshot backup -c my_config.toml --margin "10 minutes"
 ```
 
 Done! The snapshots will automatically spill over from the 4 hours span to the
