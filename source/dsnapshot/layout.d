@@ -165,6 +165,9 @@ unittest {
 struct Layout {
     import sumtype;
 
+    /// The config which can be used to regenerate the layout.
+    LayoutConfig conf;
+
     Bucket[] buckets;
     /// The time of the bucket which a snapshot should try to match.
     const(Interval!SysTime)[] times;
@@ -173,6 +176,7 @@ struct Layout {
     Snapshot[] discarded;
 
     this(const SysTime start, const LayoutConfig conf) {
+        this.conf = LayoutConfig(conf.spans.dup);
         auto begin = start.toUTC;
         auto end = start.toUTC;
         auto app = appender!(Interval!SysTime[])();

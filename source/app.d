@@ -21,6 +21,7 @@ int main(string[] args) {
     import dsnapshot.cmdgroup.backup;
     import dsnapshot.cmdgroup.remote;
     import dsnapshot.cmdgroup.restore;
+    import dsnapshot.cmdgroup.watch;
 
     confLogger(VerboseMode.info);
 
@@ -60,6 +61,10 @@ int main(string[] args) {
       (Config.Admin a) {
           loadConfig(conf);
           return cmdAdmin(conf.snapshots, a);
+      },
+      (Config.Watch a) {
+          loadConfig(conf);
+          return cli(conf.global, a, conf.snapshots);
       }
     );
     // dfmt on
@@ -186,6 +191,18 @@ Config parseUserArgs(string[] args) @trusted {
             // dfmt on
 
             data.names = names.map!(a => Name(a)).array;
+        }
+
+        void watchParse() {
+            Config.Watch data;
+            scope (success)
+                conf.data = data;
+
+            // dfmt off
+            data.helpInfo = std.getopt.getopt(args,
+                std.getopt.config.required, "s|snapshot", "The name of the snapshot to backup", &data.name.value,
+                );
+            // dfmt on
         }
 
         alias ParseFn = void delegate();
