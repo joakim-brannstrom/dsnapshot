@@ -110,7 +110,7 @@ unittest {
     immutable tmpDir = "test_snapshot_scan";
     scope (exit)
         () @trusted { rmdirRecurse(tmpDir); }();
-    mkdir(tmpDir);
+    mkdir(tmpDir).collectException;
 
     const offset = 5.dur!"minutes";
     const base = Clock.currTime.toUTC;
