@@ -69,14 +69,14 @@ void snapshot(SnapshotConfig snapshot, const Config.Backup conf) {
     // to do. If multiple snapshots are taken close to each other in time then
     // it means that the "last" one of them is actually the only one that is
     // kept because it is closest to the bucket.
-    if (!layout.isFirstBucketEmpty) {
+    if (!conf.forceBackup && !layout.isFirstBucketEmpty) {
         const first = layout.snapshotTimeInBucket(0);
         const timeLeft = first.get - layout.times[0].begin;
         if (timeLeft > conf.newSnapshotMargin) {
-            logger.infof("No new snapshot taken because one where recently taken");
+            logger.infof("No new snapshot because one where recently created");
 
             if (!first.isNull) {
-                logger.infof("Latest snapshot taken at %s. Next snapshot will be taken in %s",
+                logger.infof("Latest snapshot created at %s. Next snapshot will be created in %s",
                         first.get, timeLeft);
             }
             return;

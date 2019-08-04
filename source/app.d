@@ -123,10 +123,11 @@ Config parseUserArgs(string[] args) @trusted {
             string margin;
             // dfmt off
             data.helpInfo = std.getopt.getopt(args,
+                "force", "Force a backup to be taken even though it isn't time for it", &data.forceBackup,
                 "ignore-rsync-error-code", "Ignore rsync error code", &data.ignoreRsyncErrorCodes,
+                "margin", "Add a margin when checking if a new snapshot should be taken", &margin,
                 "resume", "If an interrupted backup should be resumed", &data.resume,
                 "s|snapshot", "The name of the snapshot to backup (default: all)", &data.name.value,
-                "margin", "Add a margin when checking if a new snapshot should be taken", &margin,
                 );
             // dfmt on
             data.newSnapshotMargin = parseDuration(margin);
