@@ -201,6 +201,7 @@ Config parseUserArgs(string[] args) @trusted {
 
             // dfmt off
             data.helpInfo = std.getopt.getopt(args,
+                "max-nr", "Exit after this number of snapshots has been created", &data.maxSnapshots,
                 std.getopt.config.required, "s|snapshot", "The name of the snapshot to backup", &data.name.value,
                 );
             // dfmt on

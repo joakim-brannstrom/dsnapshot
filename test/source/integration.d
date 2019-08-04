@@ -266,3 +266,53 @@ unittest {
     found.length.shouldEqual(1);
     readText(found[0]).shouldEqual("some data");
 }
+
+@("shall create a snapshot when backup is called with --force and the timer hasnt elapsed yet")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local.toml"));
+    ta.writeDummyData("some data");
+
+    ta.execDs("backup").status.shouldEqual(0);
+    // not created
+    ta.execDs("backup").status.shouldEqual(0);
+    // but now
+    ta.execDs("backup", "--force").status.shouldEqual(0);
+
+    const found = ta.findFile("dst", "file.txt");
+    found.length.shouldEqual(2);
+}
+
+@("shall create a snapshot when the files in src changes")
+unittest {
+    import std.concurrency : spawn, send, receiveTimeout, receiveOnly, ownerTid;
+
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local_watch.toml"));
+    ta.writeDummyData("some data");
+
+    ta.execDs("backup").status.shouldEqual(0);
+
+    static void modifyFile(string fname) {
+        bool running = true;
+        int i = 0;
+        while (running) {
+            receiveTimeout(10.dur!"msecs", (bool a) {
+                running = false;
+                logger.info("apa ", a);
+            });
+            File(fname, "w").write("dummy");
+        }
+        send(ownerTid, true);
+    }
+
+    auto modifyTid = spawn(&modifyFile, ta.inSandboxPath("src/file.txt"));
+    ta.execDs("watch", "-s", "a", "--max-nr", "5").status.shouldEqual(0);
+    send(modifyTid, true);
+    receiveOnly!bool;
+
+    const found = ta.findFile("dst", "file.txt");
+    found.length.shouldEqual(6);
+    readText(found[0]).shouldEqual("some data");
+    readText(found[4]).shouldEqual("dummy");
+}

@@ -76,6 +76,8 @@ struct Config {
     struct Watch {
         /// The name of the snapshot to backup.
         Name name;
+        /// Max number of snapshots to create before exiting.
+        ulong maxSnapshots = ulong.max;
         std.getopt.GetoptResult helpInfo;
     }
 
