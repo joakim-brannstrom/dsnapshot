@@ -1,0 +1,6 @@
+[snapshot.a]
+span.1.nr = 5
+span.1.interval = "1 msecs"
+[snapshot.a.rsync]
+src = "src"
+dst = "dst"

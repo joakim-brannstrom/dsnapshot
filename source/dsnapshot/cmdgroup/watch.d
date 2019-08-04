@@ -13,7 +13,7 @@ import logger = std.experimental.logger;
 import std.algorithm : filter, map;
 import std.array : empty;
 import std.concurrency : spawn, spawnLinked, Tid, thisTid, send, receive,
-    receiveTimeout, receiveOnly;
+    receiveTimeout, receiveOnly, OwnerTerminated;
 import std.exception : collectException;
 
 import sumtype;
@@ -42,12 +42,19 @@ int cli(const Config.Global cglobal, const Config.Watch cwatch, SnapshotConfig[]
         auto watchTid = spawnLinked(&actorWatch, cast(immutable) s, filterAndTriggerSyncTid);
 
         send(createSnapshotTid, filterAndTriggerSyncTid);
+        send(createSnapshotTid, thisTid);
+        send(createSnapshotTid, RegisterListenerDone.value);
+
         send(filterAndTriggerSyncTid, watchTid);
 
         send(watchTid, Start.value);
 
-        // TODO: should this be triggered? maybe on ctrl+c?
-        receiveOnly!Shutdown;
+        ulong countSnapshots;
+        while (countSnapshots < cwatch.maxSnapshots) {
+            // TODO: should this be triggered? maybe on ctrl+c?
+            receiveOnly!CreateSnapshotDone;
+            countSnapshots++;
+        }
     }
 
     foreach (const s; snapshots.filter!(a => cwatch.name.value == a.name)) {
@@ -90,6 +97,10 @@ enum Shutdown {
 }
 
 enum Start {
+    value,
+}
+
+enum RegisterListenerDone {
     value,
 }
 
@@ -176,6 +187,8 @@ void actorWatch(immutable SnapshotConfig snapshot, Tid onFsChange) nothrow {
         while (true) {
             try {
                 actFallback(poll);
+            } catch (OwnerTerminated) {
+                break;
             } catch (Exception e) {
                 logger.warning(e.msg).collectException;
             }
@@ -185,6 +198,8 @@ void actorWatch(immutable SnapshotConfig snapshot, Tid onFsChange) nothrow {
         while (true) {
             try {
                 actNormal(path, poll);
+            } catch (OwnerTerminated) {
+                break;
             } catch (Exception e) {
                 logger.warning(e.msg).collectException;
             }
@@ -271,6 +286,7 @@ void actorFilterAndTriggerSync(immutable SnapshotConfig snapshot_, Tid onSync) n
         while (true) {
             act(process, onSnapshotDone);
         }
+    } catch (OwnerTerminated) {
     } catch (Exception e) {
         logger.error(e.msg).collectException;
     }
@@ -299,9 +315,16 @@ void actorCreateSnapshot(immutable SnapshotConfig snapshot) nothrow {
         backend.removeDiscarded(layout);
     }
 
-    Tid onSnapshotDone;
+    Tid[] onSnapshotDone;
     try {
-        onSnapshotDone = () @trusted { return receiveOnly!Tid; }();
+        bool running = true;
+        while (running) {
+            () @trusted {
+                receive((Tid a) => onSnapshotDone ~= a, (RegisterListenerDone a) {
+                    running = false;
+                });
+            }();
+        }
     } catch (Exception e) {
         logger.error(e.msg).collectException;
         return;
@@ -311,9 +334,14 @@ void actorCreateSnapshot(immutable SnapshotConfig snapshot) nothrow {
         try {
             () @trusted {
                 scope (exit)
-                    send(onSnapshotDone, CreateSnapshotDone.value);
+                    () {
+                    foreach (t; onSnapshotDone)
+                        send(t, CreateSnapshotDone.value);
+                }();
                 receive((CreateSnapshot a) { act(cast() snapshot); });
             }();
+        } catch (OwnerTerminated) {
+            break;
         } catch (Exception e) {
             logger.warning(e.msg).collectException;
         }
