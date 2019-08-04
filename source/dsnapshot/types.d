@@ -266,9 +266,17 @@ struct RsyncConfig {
     // --chmod change permission on transfered files
     // --numeric-ids don't map uid/gid values by user/group name
     // --modify-window set the accuracy for mod-time comparisons
+    // -W, --whole-file copy files whole (w/o delta-xfer algorithm)
+    // --inplace update destination files in-place
+    //
+    // using the combination of --no-whole-file and --inplace to make it
+    // possible for e.g. BTRFS/ZFS to deduplicate within the file because only
+    // those parts of the file that is changed is overwritten. It means that
+    // the extends that are not written to, that the file consist of, are kept
+    // as is.
     string[] backupArgs = [
         "-ahv", "--numeric-ids", "--modify-window", "1", "--delete",
-        "--delete-excluded", "--partial"
+        "--delete-excluded", "--partial", "--inplace", "--no-whole-file",
     ];
 
     string[] restoreArgs = ["-ahv", "--numeric-ids", "--modify-window", "1"];
