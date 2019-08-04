@@ -26,6 +26,8 @@ struct Config {
         Name name;
         /// If the user wants to resume an interrupted backup.
         bool resume;
+        /// Force a backup to be taken even though it isn't time for it
+        bool forceBackup;
         /// Adjusts the margin used when calculating if a new snapshot should be taken.
         Duration newSnapshotMargin;
         ///
