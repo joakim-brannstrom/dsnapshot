@@ -17,6 +17,8 @@ immutable snapshotData = "data";
 immutable snapshotFakerootEnv = "fakeroot.env";
 /// User id that is replaced by the actual path to the file to save the env in
 immutable snapshotFakerootSaveEnvId = "$$SAVE_ENV_FILE$$";
+/// The name of the symlink pointing to the latest snapshot.
+immutable snapshotLatest = "latest";
 
 /// Tag a string as a path and make it absolute+normalized.
 struct Path {

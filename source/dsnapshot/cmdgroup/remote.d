@@ -113,7 +113,7 @@ int publishSnapshot(const string snapshot) nothrow @safe {
 
     try {
         rename(snapshot, dst);
-        const latest = buildPath(dst.dirName, "latest");
+        const latest = buildPath(dst.dirName, snapshotLatest);
         if (exists(latest) && isSymlink(latest)) {
             remove(latest);
         }

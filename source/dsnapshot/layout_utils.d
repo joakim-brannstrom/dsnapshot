@@ -68,14 +68,16 @@ Name[] snapshotNamesFromDir(Path dir) @trusted {
     auto app = appender!(Name[])();
     dirEntries(dir.toString, SpanMode.shallow).map!(a => a.name)
         .filter!(a => a.isDir)
+        .filter!(a => a.baseName != snapshotLatest)
         .map!(a => Name(a.baseName))
         .copy(app);
     return app.data;
 }
 
 Name[] snapshotNamesFromSsh(const RemoteCmd cmd_, string addr, string path) {
-    import std.algorithm : map, copy;
+    import std.algorithm : map, copy, filter;
     import std.array : appender;
+    import std.path : baseName;
     import std.process : execute;
     import std.string : splitLines;
 
@@ -92,7 +94,11 @@ Name[] snapshotNamesFromSsh(const RemoteCmd cmd_, string addr, string path) {
     }
 
     auto app = appender!(Name[])();
-    res.output.splitLines.map!(a => Name(a)).copy(app);
+    res.output
+        .splitLines
+        .filter!(a => a.baseName != snapshotLatest)
+        .map!(a => Name(a))
+        .copy(app);
 
     return app.data;
 }
