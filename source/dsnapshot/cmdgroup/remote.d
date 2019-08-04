@@ -95,8 +95,8 @@ int cmdRemote(const Config.Remotecmd conf) nothrow {
 int publishSnapshot(const string snapshot) nothrow @safe {
     import std.algorithm : map, filter;
     import std.exception : collectException;
-    import std.file : dirEntries, SpanMode, exists, mkdirRecurse, rmdirRecurse, rename;
-    import std.path : baseName;
+    import std.file : exists, rename, remove, symlink, isSymlink;
+    import std.path : dirName, buildPath;
     import std.stdio : writeln;
 
     const dst = () {
@@ -113,6 +113,11 @@ int publishSnapshot(const string snapshot) nothrow @safe {
 
     try {
         rename(snapshot, dst);
+        const latest = buildPath(dst.dirName, "latest");
+        if (exists(latest) && isSymlink(latest)) {
+            remove(latest);
+        }
+        symlink(dst, latest);
     } catch (Exception e) {
         logger.error(e.msg).collectException;
         return 1;

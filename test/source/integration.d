@@ -24,7 +24,7 @@ unittest {
     ta.execDs("backup").status.shouldEqual(0);
 
     const found = ta.findFile("dst", "file.txt");
-    found.length.shouldEqual(1);
+    found.length.shouldEqual(2);
     found[0].dirName.baseName.shouldEqual("data");
     found[0].dirName.dirName.dirName.baseName.shouldEqual("dst");
     readText(found[0]).shouldEqual("some data");
@@ -39,7 +39,7 @@ unittest {
     ta.execDs("backup").status.shouldEqual(0);
 
     const found = ta.findFile("dst", "file.txt");
-    found.length.shouldEqual(1);
+    found.length.shouldEqual(2);
     found[0].dirName.baseName.shouldEqual("data");
     found[0].dirName.dirName.dirName.baseName.shouldEqual("dst");
     readText(found[0]).shouldEqual("some data");
@@ -55,7 +55,7 @@ unittest {
     ta.execDs("backup").status.shouldEqual(0);
 
     const found = ta.findFile("dst", "file.txt");
-    found.length.shouldEqual(1);
+    found.length.shouldEqual(2);
     found[0].dirName.baseName.shouldEqual("data");
     found[0].dirName.dirName.dirName.baseName.shouldEqual("dst");
     readText(found[0]).shouldEqual("some data");
@@ -176,7 +176,7 @@ unittest {
     ta.execDs("backup").status.shouldEqual(0);
 
     const found = ta.findFile("dst", "fakeroot.env");
-    found.length.shouldEqual(1);
+    found.length.shouldEqual(2);
 }
 
 @("shall save the env via fakeroot for a local to remote when executing backup")
@@ -189,7 +189,7 @@ unittest {
     ta.execDs("backup").status.shouldEqual(0);
 
     const found = ta.findFile("dst", "fakeroot.env");
-    found.length.shouldEqual(1);
+    found.length.shouldEqual(2);
 }
 
 @("shall restore from a local snapshot using the fakeroot env when executing restore")
@@ -251,7 +251,7 @@ unittest {
     // should be closed
     dirEntries(ta.inSandboxPath("dst"), SpanMode.depth).count.shouldEqual(0);
     // three files because it should be the snapshot with a date, the
-    dirEntries(ta.inSandboxPath("encfs"), SpanMode.depth).count.shouldEqual(3);
+    dirEntries(ta.inSandboxPath("encfs"), SpanMode.depth).count.shouldEqual(4);
 
     // opening to inspect the content
     spawnProcess([
@@ -263,7 +263,7 @@ unittest {
         execute(["encfs", "-u", ta.inSandboxPath("dst")]);
 
     const found = ta.findFile("dst", "file.txt");
-    found.length.shouldEqual(1);
+    found.length.shouldEqual(2);
     readText(found[0]).shouldEqual("some data");
 }
 
@@ -280,7 +280,7 @@ unittest {
     ta.execDs("backup", "--force").status.shouldEqual(0);
 
     const found = ta.findFile("dst", "file.txt");
-    found.length.shouldEqual(2);
+    found.length.shouldEqual(3);
 }
 
 @("shall create a snapshot when the files in src changes")
@@ -297,10 +297,7 @@ unittest {
         bool running = true;
         int i = 0;
         while (running) {
-            receiveTimeout(10.dur!"msecs", (bool a) {
-                running = false;
-                logger.info("apa ", a);
-            });
+            receiveTimeout(10.dur!"msecs", (bool a) { running = false; });
             File(fname, "w").write("dummy");
         }
         send(ownerTid, true);
@@ -312,7 +309,7 @@ unittest {
     receiveOnly!bool;
 
     const found = ta.findFile("dst", "file.txt");
-    found.length.shouldEqual(6);
+    found.length.shouldEqual(7);
     readText(found[0]).shouldEqual("some data");
     readText(found[4]).shouldEqual("dummy");
 }
