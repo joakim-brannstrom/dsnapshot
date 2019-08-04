@@ -266,3 +266,19 @@ unittest {
     found.length.shouldEqual(1);
     readText(found[0]).shouldEqual("some data");
 }
+
+@("shall create a snapshot when backup is called with --force and the timer hasnt elapsed yet")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local.toml"));
+    ta.writeDummyData("some data");
+
+    ta.execDs("backup").status.shouldEqual(0);
+    // not created
+    ta.execDs("backup").status.shouldEqual(0);
+    // but now
+    ta.execDs("backup", "--force").status.shouldEqual(0);
+
+    const found = ta.findFile("dst", "file.txt");
+    found.length.shouldEqual(2);
+}
