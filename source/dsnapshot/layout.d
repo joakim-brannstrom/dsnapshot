@@ -299,6 +299,8 @@ struct Layout {
         if (buckets.empty || discarded.empty)
             return;
 
+        Snapshot[] junk;
+
         auto iterate(Snapshot[] candidates) {
             Snapshot[] spare;
 
@@ -313,13 +315,13 @@ struct Layout {
 
                 const fitIdx = bestFitInterval(s.time, times);
                 if (fitIdx.isNull) {
-                    discarded ~= s;
+                    junk ~= s;
                     continue;
                 }
 
                 const idx = fitIdx.get + 1;
                 if (idx > buckets.length) {
-                    discarded ~= s;
+                    junk ~= s;
                     continue;
                 }
 
@@ -347,6 +349,8 @@ struct Layout {
             discarded = iterate(discarded);
         }
         while (prev != discarded);
+
+        discarded ~= junk;
     }
 
     import std.range : isOutputRange;
