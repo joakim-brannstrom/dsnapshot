@@ -122,12 +122,12 @@ It keeps the backups for up to a month with less and less frequency.
 
 ## Advanced config
 
-dsnapshot can run a script before and after a snapshot is created. The snapshot
-process will stop if any of the scripts fail.
+dsnapshot can run scripts (hooks) before and after a snapshot is created. The
+snapshot process will stop if any of the scripts fail.
 ```toml
 [snapshot.example]
-pre_exec = ["echo $DSNAPSHOT_SRC $DSNAPSHOT_DST", "echo second script"]
-post_exec = ["echo $DSNAPSHOT_SRC $DSNAPSHOT_DST", "echo second script"]
+pre_exec = ["echo $DSNAPSHOT_SRC $DSNAPSHOT_DST $DSNAPSHOT_DATA_DST $DSNAPSHOT_LATEST $DSNAPSHOT_DATA_LATEST", "echo second script"]
+post_exec = ["echo $DSNAPSHOT_SRC $DSNAPSHOT_DST $DSNAPSHOT_DATA_DST $DSNAPSHOT_LATEST $DSNAPSHOT_DATA_LATEST", "echo second script"]
 ```
 
 Normally the CPU and IO is set to low priority for the rsync process. This can be turned off with:
@@ -402,6 +402,34 @@ encrypted_path = "~/backup/example_encfs"
 [snapshot.example.rsync]
 src = "~/example"
 dst = "~/backup/example"
+```
+
+## Example 8: Run dedupe on a btrfs filesystem
+
+BTRFS supports deduplication of blocks on the filesystem. In this example one
+of the many tools to tell the kernel which blocks should be deduplicated are
+called as a post processing step. This can be quite expensive to do so may not
+be optimal to always add it as a `post_exec` hook.
+
+If the snapshots are stored locally:
+```toml
+[snapshot.example]
+post_exec = ["cp $DSNAPSHOT_LATEST/duperemove.sqlite3 DSNAPSHOT_DST || true",
+    "duperemove -dhr --hashfile ${DSNAPSHOT_DST}/duperemove.sqlite3 $DSNAPSHOT_DATA_LATEST ${DSNAPSHOT_DATA_DST}"]
+[snapshot.example.rsync]
+src = "~/example"
+dst = "~/backup/example"
+```
+
+If the snapshots are stored on a remote host:
+```toml
+[snapshot.example]
+post_exec = ["echo cp $DSNAPSHOT_LATEST/duperemove.sqlite3 ${DSNAPSHOT_DST#*:} | ssh remote || true",
+    "echo duperemove -dhr --hashfile ${DSNAPSHOT_DST#*:}/duperemove.sqlite3 $DSNAPSHOT_DATA_LATEST ${DSNAPSHOT_DATA_DST#*:} | ssh remote"]
+[snapshot.example.rsync]
+src = "~/example"
+dst = "~/backup/example"
+dst_addr = "remote"
 ```
 
 # Usage

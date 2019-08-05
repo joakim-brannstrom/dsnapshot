@@ -99,9 +99,9 @@ final class RsyncBackend : SyncBackend {
         import std.conv : to;
         import std.file : remove, exists, mkdirRecurse;
         import std.format : format;
-        import std.path : buildPath, setExtension;
-        import std.process : spawnShell;
-        import std.stdio : stdin, File;
+        import std.path : buildPath, setExtension, dirName, baseName;
+        import std.process : spawnShell, executeShell;
+        import std.stdio : stdin, File, write;
         import dsnapshot.console;
 
         static void setupLocalDest(const Path p) @safe {
@@ -124,19 +124,43 @@ final class RsyncBackend : SyncBackend {
         static int executeHooks(const string msg, const string[] hooks, const string[string] env) @safe {
             foreach (s; hooks) {
                 logger.info(msg, ": ", s);
-                if (spawnShell(s, env).wait != 0)
-                    return 1;
+                if (isInteractiveShell) {
+                    if (spawnShell(s, env).wait != 0)
+                        return 1;
+                } else {
+                    auto res = executeShell(s, env);
+                    write(res.output);
+                    if (res.status != 0)
+                        return 1;
+                }
             }
             return 0;
         }
 
-        string src, dst;
+        string src, dst, latest;
 
         string[] buildOpts() @safe {
             string[] opts = [conf.cmdRsync];
             opts ~= conf.backupArgs.dup;
+            const latest_ = layout.firstFullBucket;
 
-            const latest = layout.firstFullBucket;
+            conf.flow.match!((None a) {}, (FlowLocal a) {
+                src = fixRemteHostForRsync(a.src.value);
+                dst = (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotData).toString;
+                if (!latest_.isNull)
+                    latest = (a.dst.value.Path ~ latest_.get.name.value).toString;
+            }, (FlowRsyncToLocal a) {
+                src = fixRemteHostForRsync(makeRsyncAddr(a.src.addr, a.src.path));
+                dst = (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotData).toString;
+                if (!latest_.isNull)
+                    latest = (a.dst.value.Path ~ latest_.get.name.value).toString;
+            }, (FlowLocalToRsync a) {
+                src = fixRemteHostForRsync(a.src.value);
+                dst = makeRsyncAddr(a.dst.addr, buildPath(a.dst.path,
+                    nameOfNewSnapshot, snapshotData));
+                if (!latest_.isNull)
+                    latest = buildPath(a.dst.path, latest_.get.name.value);
+            });
 
             if (!conf.rsh.empty)
                 opts ~= ["-e", conf.rsh];
@@ -144,26 +168,20 @@ final class RsyncBackend : SyncBackend {
             if (isInteractiveShell)
                 opts ~= conf.progress;
 
-            if (conf.oneFs && !latest.isNull)
+            if (conf.oneFs && !latest_.isNull)
                 opts ~= ["-x"];
 
-            if (conf.useLinkDest && !latest.isNull) {
+            if (conf.useLinkDest && !latest_.isNull) {
                 conf.flow.match!((None a) {}, (FlowLocal a) {
-                    opts ~= [
-                        "--link-dest",
-                        (a.dst.value.Path ~ latest.get.name.value ~ snapshotData).toString
-                    ];
+                    opts ~= ["--link-dest", buildPath(latest, snapshotData)];
                 }, (FlowRsyncToLocal a) {
-                    opts ~= [
-                        "--link-dest",
-                        (a.dst.value.Path ~ latest.get.name.value ~ snapshotData).toString
-                    ];
+                    opts ~= ["--link-dest", buildPath(latest, snapshotData)];
                 }, (FlowLocalToRsync a) {
                     // from the rsync documentation:
                     // If DIR is a relative path, it is relative to the destination directory.
                     opts ~= [
                         "--link-dest",
-                        buildPath("..", "..", latest.get.name.value, snapshotData)
+                        buildPath("..", "..", latest.baseName, snapshotData)
                     ];
                 });
             }
@@ -188,20 +206,7 @@ final class RsyncBackend : SyncBackend {
                 });
             }
 
-            conf.flow.match!((None a) {}, (FlowLocal a) {
-                src = fixRemteHostForRsync(a.src.value);
-                dst = (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotData).toString;
-                opts ~= [src, dst];
-            }, (FlowRsyncToLocal a) {
-                src = fixRemteHostForRsync(makeRsyncAddr(a.src.addr, a.src.path));
-                dst = (a.dst.value.Path ~ nameOfNewSnapshot ~ snapshotData).toString;
-                opts ~= [src, dst];
-            }, (FlowLocalToRsync a) {
-                src = fixRemteHostForRsync(a.src.value);
-                dst = makeRsyncAddr(a.dst.addr, buildPath(a.dst.path,
-                    nameOfNewSnapshot, snapshotData));
-                opts ~= [src, dst];
-            });
+            opts ~= [src, dst];
 
             return opts;
         }
@@ -220,7 +225,11 @@ final class RsyncBackend : SyncBackend {
 
         logger.infof("Synchronizing '%s' to '%s'", src, dst);
 
-        string[string] hookEnv = ["DSNAPSHOT_SRC" : src, "DSNAPSHOT_DST" : dst];
+        string[string] hookEnv = [
+            "DSNAPSHOT_SRC" : src, "DSNAPSHOT_DST" : dst.dirName,
+            "DSNAPSHOT_DATA_DST" : dst, "DSNAPSHOT_LATEST" : latest,
+            "DSNAPSHOT_DATA_LATEST" : buildPath(latest, snapshotData),
+        ];
 
         if (executeHooks("pre_exec", snapshot.hooks.preExec, hookEnv) != 0)
             throw new SnapshotException(SnapshotException.PreExecFailed.init.SnapshotError);

@@ -53,9 +53,10 @@ unittest {
     ta.writeDummyData("some data");
 
     ta.execDs("backup").status.shouldEqual(0);
+    ta.execDs("backup", "--force").status.shouldEqual(0);
 
     const found = ta.findFile("dst", "file.txt");
-    found.length.shouldEqual(2);
+    found.length.shouldEqual(3);
     found[0].dirName.baseName.shouldEqual("data");
     found[0].dirName.dirName.dirName.baseName.shouldEqual("dst");
     readText(found[0]).shouldEqual("some data");
@@ -312,4 +313,49 @@ unittest {
     found.length.shouldEqual(7);
     readText(found[0]).shouldEqual("some data");
     readText(found[4]).shouldEqual("dummy");
+}
+
+@("shall execute the pre and post hooks when creating a snapshot via backup")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local_hooks.toml"), dsnapshotPath, ta.sandboxPath);
+    ta.writeDummyData("some data");
+
+    ta.execDs("backup").status.shouldEqual(0);
+    ta.execDs("backup", "--force").status.shouldEqual(0);
+
+    ta.findFile("src", "dsnapshot_src_pre").length.shouldEqual(1);
+    ta.findFile("dst", "dsnapshot_dst_pre").length.shouldEqual(3);
+    ta.findFile("dst", "dsnapshot_data_dst_pre").length.shouldEqual(3);
+    ta.findFile("dst", "dsnapshot_latest_pre").length.shouldEqual(1);
+    ta.findFile("dst", "dsnapshot_data_latest_pre").length.shouldEqual(1);
+
+    ta.findFile("src", "dsnapshot_src_post").length.shouldEqual(1);
+    ta.findFile("dst", "dsnapshot_dst_post").length.shouldEqual(3);
+    ta.findFile("dst", "dsnapshot_data_dst_post").length.shouldEqual(3);
+    ta.findFile("dst", "dsnapshot_latest_post").length.shouldEqual(1);
+    ta.findFile("dst", "dsnapshot_data_latest_post").length.shouldEqual(1);
+}
+
+@("shall execute the pre and post hooks when creating a snapshot via backup")
+unittest {
+    auto ta = makeTestArea;
+    ta.writeConfigFromTemplate(inTestData("test_local_to_remote_hooks.toml"),
+            dsnapshotPath, ta.sandboxPath);
+    ta.writeDummyData("some data");
+
+    ta.execDs("backup").status.shouldEqual(0);
+    ta.execDs("backup", "--force").status.shouldEqual(0);
+
+    ta.findFile("src", "dsnapshot_src_pre").length.shouldEqual(1);
+    ta.findFile("dst", "dsnapshot_dst_pre").length.shouldEqual(3);
+    ta.findFile("dst", "dsnapshot_data_dst_pre").length.shouldEqual(3);
+    ta.findFile("dst", "dsnapshot_latest_pre").length.shouldEqual(1);
+    ta.findFile("dst", "dsnapshot_data_latest_pre").length.shouldEqual(1);
+
+    ta.findFile("src", "dsnapshot_src_post").length.shouldEqual(1);
+    ta.findFile("dst", "dsnapshot_dst_post").length.shouldEqual(3);
+    ta.findFile("dst", "dsnapshot_data_dst_post").length.shouldEqual(3);
+    ta.findFile("dst", "dsnapshot_latest_post").length.shouldEqual(1);
+    ta.findFile("dst", "dsnapshot_data_latest_post").length.shouldEqual(1);
 }
