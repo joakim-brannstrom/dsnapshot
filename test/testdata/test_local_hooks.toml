@@ -1,0 +1,20 @@
+[snapshot.a]
+span.1.nr = 5
+span.1.interval = "5 minutes"
+pre_exec = [
+"touch $DSNAPSHOT_SRC/dsnapshot_src_pre",
+"touch $DSNAPSHOT_DST/dsnapshot_dst_pre",
+"touch $(dirname $DSNAPSHOT_DATA_DST)/dsnapshot_data_dst_pre",
+"touch $DSNAPSHOT_LATEST/dsnapshot_latest_pre || true",
+"touch $DSNAPSHOT_DATA_LATEST/dsnapshot_data_latest_pre || true"
+]
+post_exec = [
+"touch $DSNAPSHOT_SRC/dsnapshot_src_post",
+"touch $DSNAPSHOT_DST/dsnapshot_dst_post",
+"touch $DSNAPSHOT_DATA_DST/dsnapshot_data_dst_post",
+"touch $DSNAPSHOT_LATEST/dsnapshot_latest_post || true",
+"touch $DSNAPSHOT_DATA_LATEST/dsnapshot_data_latest_post || true"
+]
+[snapshot.a.rsync]
+src = "src"
+dst = "dst"

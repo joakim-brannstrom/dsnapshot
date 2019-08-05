@@ -116,6 +116,7 @@ unittest {
     immutable tmpDir = "test_snapshot_scan";
     scope (exit)
         () @trusted { rmdirRecurse(tmpDir); }();
+    () @trusted { rmdirRecurse(tmpDir).collectException; }();
     mkdir(tmpDir).collectException;
 
     const offset = 5.dur!"minutes";
