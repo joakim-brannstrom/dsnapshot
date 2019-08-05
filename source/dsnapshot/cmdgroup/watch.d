@@ -41,8 +41,8 @@ int cli(const Config.Global cglobal, const Config.Watch cwatch, SnapshotConfig[]
                 cast(immutable) s, createSnapshotTid);
         auto watchTid = spawnLinked(&actorWatch, cast(immutable) s, filterAndTriggerSyncTid);
 
-        send(createSnapshotTid, filterAndTriggerSyncTid);
-        send(createSnapshotTid, thisTid);
+        send(createSnapshotTid, RegisterCreateSnapshotListener(filterAndTriggerSyncTid));
+        send(createSnapshotTid, RegisterNewSnapshotListener(thisTid));
         send(createSnapshotTid, RegisterListenerDone.value);
 
         send(filterAndTriggerSyncTid, watchTid);
@@ -52,7 +52,7 @@ int cli(const Config.Global cglobal, const Config.Watch cwatch, SnapshotConfig[]
         ulong countSnapshots;
         while (countSnapshots < cwatch.maxSnapshots) {
             // TODO: should this be triggered? maybe on ctrl+c?
-            receiveOnly!CreateSnapshotDone;
+            receiveOnly!NewSnapshotReply;
             countSnapshots++;
         }
     }
@@ -88,7 +88,11 @@ enum CreateSnapshot {
     value,
 }
 
-enum CreateSnapshotDone {
+enum CreateSnapshotReply {
+    value,
+}
+
+enum NewSnapshotReply {
     value,
 }
 
@@ -104,6 +108,16 @@ enum RegisterListenerDone {
     value,
 }
 
+/// If the signal to create a snapshot has been received.
+struct RegisterCreateSnapshotListener {
+    Tid value;
+}
+
+/// If a snapshot has successfully been created.
+struct RegisterNewSnapshotListener {
+    Tid value;
+}
+
 /** Watch a path for changes on the filesystem.
  */
 void actorWatch(immutable SnapshotConfig snapshot, Tid onFsChange) nothrow {
@@ -114,7 +128,7 @@ void actorWatch(immutable SnapshotConfig snapshot, Tid onFsChange) nothrow {
         if (!events.empty) {
             () @trusted {
                 send(onFsChange, FilesystemChange.value);
-                receiveOnly!CreateSnapshotDone;
+                receiveOnly!CreateSnapshotReply;
             }();
         }
 
@@ -156,7 +170,7 @@ void actorWatch(immutable SnapshotConfig snapshot, Tid onFsChange) nothrow {
 
     void actFallback(const Duration poll) @trusted {
         send(onFsChange, FilesystemChange.value);
-        receiveOnly!CreateSnapshotDone;
+        receiveOnly!CreateSnapshotReply;
         Thread.sleep(poll);
     }
 
@@ -261,10 +275,10 @@ void actorFilterAndTriggerSync(immutable SnapshotConfig snapshot_, Tid onSync) n
         }
 
         send(onSync, CreateSnapshot.value);
-        receiveOnly!CreateSnapshotDone;
+        receiveOnly!CreateSnapshotReply;
         process.updateTrigger();
 
-        send(onSnapshotDone, CreateSnapshotDone.value);
+        send(onSnapshotDone, CreateSnapshotReply.value);
 
         logger.info("Next snapshot at the earliest in ", process.timeout);
     }
@@ -316,13 +330,15 @@ void actorCreateSnapshot(immutable SnapshotConfig snapshot) nothrow {
     }
 
     Tid[] onSnapshotDone;
+    Tid[] onNewSnapshot;
     try {
         bool running = true;
         while (running) {
             () @trusted {
-                receive((Tid a) => onSnapshotDone ~= a, (RegisterListenerDone a) {
-                    running = false;
-                });
+                receive((RegisterCreateSnapshotListener a) {
+                    onSnapshotDone ~= a.value;
+                }, (RegisterNewSnapshotListener a) { onNewSnapshot ~= a.value; },
+                        (RegisterListenerDone a) { running = false; });
             }();
         }
     } catch (Exception e) {
@@ -336,9 +352,13 @@ void actorCreateSnapshot(immutable SnapshotConfig snapshot) nothrow {
                 scope (exit)
                     () {
                     foreach (t; onSnapshotDone)
-                        send(t, CreateSnapshotDone.value);
+                        send(t, CreateSnapshotReply.value);
                 }();
-                receive((CreateSnapshot a) { act(cast() snapshot); });
+                receive((CreateSnapshot a) {
+                    act(cast() snapshot);
+                    foreach (t; onNewSnapshot)
+                        send(t, NewSnapshotReply.value);
+                });
             }();
         } catch (OwnerTerminated) {
             break;
