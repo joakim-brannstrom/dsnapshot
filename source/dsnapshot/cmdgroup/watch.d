@@ -229,7 +229,7 @@ void actorFilterAndTriggerSync(immutable SnapshotConfig snapshot_, Tid onSync) n
         }
 
         void updateTrigger() {
-            this.layout = syncBe.update(Layout(Clock.currTime, sconf.layout.conf));
+            layout = syncBe.update(sconf.layout);
 
             if (layout.isFirstBucketEmpty) {
                 triggerAt = Clock.currTime;

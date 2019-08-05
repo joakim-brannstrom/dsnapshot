@@ -46,8 +46,9 @@ final class RsyncBackend : SyncBackend {
 
     override Layout update(Layout layout) {
         import dsnapshot.layout_utils;
+        import std.datetime : Clock;
 
-        return fillLayout(layout, conf.flow, remoteCmd_);
+        return fillLayout(Layout(Clock.currTime, layout.conf), conf.flow, remoteCmd_);
     }
 
     override void publishSnapshot(const string newSnapshot) {
