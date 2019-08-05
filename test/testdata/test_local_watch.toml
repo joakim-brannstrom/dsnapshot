@@ -1,6 +1,8 @@
 [snapshot.a]
-span.1.nr = 5
-span.1.interval = "1 msecs"
+span.1.nr = 10
+# because of lag it has to be spaced out somewhat. This give us 5s to generated
+# the snapshots
+span.1.interval = "500 msecs"
 [snapshot.a.rsync]
 src = "src"
 dst = "dst"
