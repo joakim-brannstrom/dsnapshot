@@ -475,6 +475,130 @@ configured dsnapshots first span to a 4 hours interval and the second is 1 day.
 Done! The snapshots will automatically spill over from the 4 hours span to the
 1 day span over time.
 
+## systemd
+
+Now that you have your config file set up, it's time to set up dsnapshot to be
+run automatically.
+
+Since version 197 systemd supports timers, making cron unnecessary on a systemd
+system. Since version 212 persistent services are supported, replacing even
+anacron. Persistent timers are run at the next opportunity if the system was
+powered down when the timer was scheduled.
+
+### System Service
+
+This is how to setup dsnapshot as a system service to create backups.
+
+First create a service file: /etc/systemd/system/dsnapshot@.service
+
+```systemd
+[Unit]
+Description=dsnapshot backup (%I)
+
+[Service]
+Type=oneshot
+Nice=19
+IOSchedulingClass=idle
+ExecStart=/path/to/dsnapshot backup -c /etc/dsnapshot/%I.toml --margin "10 minutes"
+```
+
+Then create a copy of this file for each configuration file you want to execute
+in /etc/dsnapshot. Change the name between the `@` and the file type to the
+name of the configuration file. In this example it is assumed to be `all`.
+Modify `OnCalendar` to match how often you want your configuration to execute.
+
+The template is expected to be placed in:
+/etc/systemd/system/dsnapshot-all.timer
+
+```systemd
+[Unit]
+Description=dsnapshot backup
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+Persistent=true
+OnCalendar=*-*-* 0/4:00:00
+Unit=dsnapshot@all.service
+
+[Install]
+WantedBy=timers.target
+```
+
+Then finally, enable and start:
+
+```sh
+systemctl enable --now dsnapshot-hourly.timer
+# to manually trigger it
+systemctl status -n999999 dsnapshot@all.service
+# show the status
+systemctl list-timers --user --all
+systemctl status dsnapshot-all.timer
+systemctl status dsnapshot@all.service
+journalctl -l -u dsnapshot@all.service
+```
+
+### Local User
+
+The following is an example on how to make a simple timer that runs in the
+context of a user. It will even run if the user is not logged in. Every timed
+service needs a timer and a service file that is activated by the timer as
+follows.
+
+Example of a service triggering backup
+
+FILE ~/.local/share/systemd/user/dsnapshot@.service
+
+```systemd
+[Unit]
+Description=dsnapshot backup (%I)
+
+[Service]
+Type=oneshot
+Nice=19
+IOSchedulingClass=idle
+ExecStart=/path/to/dsnapshot backup -c %h/.%I.toml --margin "10 minutes"
+```
+
+Example of a timer running every fourth hour every day
+
+FILE ~/.local/share/systemd/user/dsnapshot-all.timer
+
+```systemd
+[Unit]
+Description=dsnapshot backup
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+Persistent=true
+OnCalendar=*-*-* 0/4:00:00
+Unit=dsnapshot@dsnapshot.service
+
+[Install]
+WantedBy=timers.target
+```
+
+And then to start it:
+
+```sh
+systemctl --user enable --now dsnapshot-all.timer
+# to manually trigger it
+systemctl --user status -n999999 dsnapshot@dsnapshot.service
+# show the status
+systemctl --user list-unit-files
+systemctl --user list-timers --user --all
+systemctl --user list-units -t service --all
+systemctl --user status dsnapshot-all.timer
+systemctl --user status dsnapshot@dsnapshot.service
+journalctl -l -u dsnapshot@dsnapshot.service
+```
+
+For a complete explanation of the unit file see
+```sh
+man 5 systemd.unit
+```
+
 # Credit
 
 The creator of **rsnapshot** which inspired me to create **dsnapshot**.
