@@ -1,33 +1,34 @@
 # ubuntu_bionic_base
 FROM ubuntu:bionic
-MAINTAINER Joakim Brännström <joakim.brannstrom@gmx.com>
 
 # Dependencies:
-# ca-certificates - "Problem with the SSL CA cert" when cloning dextool otherwise.
-# sqlite3 - generates SQLite reports.
 RUN apt-get update && \
     apt-get -y --no-install-recommends install \
         ca-certificates \
         git \
+        gcc g++ \
         make
 
 RUN apt-get -y --no-install-recommends install \
         curl \
         xz-utils \
-        gcc g++
+        gnupg
 
 WORKDIR /opt
 
 # dmd_latest_version
 ARG DMD_VERSION
+RUN echo ${DMD_VERSION}
 
-# dmd
+# setup
 ENV DC "dmd"
-RUN curl -OL http://downloads.dlang.org/releases/2.x/${DMD_VERSION}/dmd.${DMD_VERSION}.linux.tar.xz
-RUN set -ex && \
-    tar xf dmd.${DMD_VERSION}.linux.tar.xz && \
-    rm -f dmd.${DMD_VERSION}*.tar.xz
-ENV PATH "/opt/dmd2/linux/bin64:$PATH"
+ENV DLANG "./dlang.sh"
+
+RUN curl -S https://dlang.org/install.sh --output ${DLANG}
+RUN bash ${DLANG} install dmd-${DMD_VERSION}
+RUN echo "#!/bin/bash\nsource $(bash ${DLANG} -a)\nbash -c \"\${@}\"" > /root/myshell.sh
+RUN chmod 755 /root/myshell.sh
+SHELL ["/root/myshell.sh"]
 RUN dmd --version && dub --version
 
 # fix_repo
