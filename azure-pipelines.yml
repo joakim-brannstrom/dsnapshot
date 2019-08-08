@@ -15,4 +15,8 @@ jobs:
   strategy:
     matrix:
       latest:
-        DMD_VERSION: 2.088.1
+        DMD_VERSION: dummy
+        DOCKERFILE: Dockerfile.latest_dmd
+      # min:
+      #   DMD_VERSION: 2.087.1
+      #   DOCKERFILE: Dockerfile

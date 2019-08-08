@@ -1,4 +1,4 @@
-# dsnapshot [![Build Status](https://dev.azure.com/wikodes/wikodes/_apis/build/status/joakim-brannstrom.dsnapshot?branchName=master)](https://dev.azure.com/wikodes/wikodes/_build/latest?definitionId=1&branchName=master)
+# dsnapshot [![Build Status](https://dev.azure.com/wikodes/wikodes/_apis/build/status/joakim-brannstrom.dsnapshot?branchName=master)](https://dev.azure.com/wikodes/wikodes/_build/latest?definitionId=2&branchName=master)
 
 **dsnapshot** is a filesystem snapshot utility based on **rsync**.
 
