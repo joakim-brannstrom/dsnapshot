@@ -320,7 +320,7 @@ struct Layout {
                 }
 
                 const idx = fitIdx.get + 1;
-                if (idx > buckets.length) {
+                if (idx >= buckets.length) {
                     junk ~= s;
                     continue;
                 }
