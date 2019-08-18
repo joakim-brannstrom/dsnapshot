@@ -39,6 +39,7 @@ auto makeTestArea(string file = __FILE__, int line = __LINE__) {
 
 struct TestArea {
     const string sandboxPath;
+    private int commandLogCnt;
 
     this(string file, int line) {
         prepare();
@@ -57,7 +58,9 @@ struct TestArea {
         args ~= ["-v", "trace"];
         auto res = executeDsnapshot(args, sandboxPath);
         try {
-            File(inSandboxPath("command.log"), "w").write(res.output);
+            auto fout = File(inSandboxPath(format("command%s.log", commandLogCnt++)), "w");
+            fout.writefln("%-(%s %)", args);
+            fout.write(res.output);
         } catch (Exception e) {
         }
         return res;
