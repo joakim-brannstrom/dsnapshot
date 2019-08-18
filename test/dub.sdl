@@ -4,7 +4,7 @@ authors "Joakim Brännström"
 copyright "Copyright © 2018, Joakim Brännström"
 license "BSL-1.0"
 
-dependency "unit-threaded" version="~>0.9"
+dependency "unit-threaded" version="~>0.10"
 
 targetPath "build"
 
