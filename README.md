@@ -90,25 +90,25 @@ multiple times.
 
 Multiple spans are concatenated together to a *snapshot layout*. The snapshots
 that are taken are automatically mapped into the specified layout as time
-progress. Lets say the following configuration:
+progress. Lets take the following configuration:
 ```toml
 span.1.nr = 2
 span.1.interval = "12 hours"
 span.2.nr = 7
-span.2.interval = "7 days"
+span.2.interval = "1 days"
 ```
 
 It will result in 9 backups as such:
 ```
 date:    now                                 now-8 days
 layout:  __1__2____3____4____5____6____7____8____9
-span nr: --1--|--------------2-------------------|
+span nr: --1---|-------------2-------------------|
 ```
 
 There may intermittently exist +1 backup because **dsnapshot** scans the
 destination for backups before it creates its new one.
 
-The default span is:
+The default layout is:
 ```toml
 span.1.nr = 6
 span.1.interval = "4 hours"
@@ -187,7 +187,8 @@ rsync_rsh = "ssh -p1234"
 ```
 
 The location of where to find `dsnapshot` on the remote host can be configured.
-This is needed when doing a local to remote snapshot:
+This is needed when doing a local to remote snapshot and `dsnapshot` is
+installed in another location:
 ```toml
 [snapshot.example]
 dsnapshot = "/path/to/dsnapshot"
@@ -233,7 +234,8 @@ encrypted_path = "/foo/bar/encfs"
 dst = "/foo/bar/dst"
 ```
 
-If the configuration file for the encrypted data is not located in the root of encrypted_path it can be specified.
+If the configuration file for the encrypted data is not located in the root of
+encrypted_path it can be specified.
 ```toml
 [snapshot.example.encfs]
 config = "path/to/config.xml"
